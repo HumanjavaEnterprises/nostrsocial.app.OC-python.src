@@ -22,6 +22,7 @@ from .behavior import (
 )
 from .contacts import ContactList
 from .enclave import SocialEnclave
+from .evaluate import Action, ConversationSignals, Evaluation, evaluate
 from .proxy import derive_proxy_npub
 from .storage import FileStorage, MemoryStorage
 from .verify import Challenge
@@ -39,6 +40,10 @@ __all__ = [
     "NetworkShape",
     "Tier",
     "TIER_ORDER",
+    # Evaluation types
+    "Action",
+    "ConversationSignals",
+    "Evaluation",
     # Constants
     "LIST_CAPACITY",
     "TIER_CAPACITY",
@@ -55,5 +60,6 @@ __all__ = [
     "MemoryStorage",
     # Functions
     "derive_proxy_npub",
+    "evaluate",
     "get_behavior",
 ]

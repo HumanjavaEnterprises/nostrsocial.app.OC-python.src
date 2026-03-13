@@ -21,6 +21,7 @@ from .types import (
     Tier,
     TIER_ORDER,
 )
+from .evaluate import Action, ConversationSignals, Evaluation, evaluate
 from .verify import Challenge, create_challenge, verify_challenge
 
 
@@ -154,6 +155,24 @@ class SocialEnclave:
         """Get behavioral rules for a contact. Returns NEUTRAL for unknowns."""
         contact = self._contacts.get_by_identifier(identifier, channel)
         return get_behavior(contact)
+
+    def evaluate(
+        self,
+        identifier: str,
+        channel: str,
+        signals: ConversationSignals,
+    ) -> Evaluation:
+        """Evaluate a conversation moment against relationship context.
+
+        Combines WHO this person is with WHAT is happening to determine
+        HOW to respond. Call this when sentiment shifts mid-conversation
+        or at conversation end to assess relationship impact.
+
+        Returns an Evaluation with adjusted warmth, token budget,
+        approach guidance, and a recommended action (hold/promote/demote/watch/block).
+        """
+        contact = self._contacts.get_by_identifier(identifier, channel)
+        return evaluate(contact, signals)
 
     @property
     def slots_remaining(self) -> dict[str, int]:
