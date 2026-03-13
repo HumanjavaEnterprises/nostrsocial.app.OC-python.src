@@ -19,6 +19,8 @@ pytest -v
   - `proxy.py` — HMAC-based proxy npub derivation
   - `evaluate.py` — Conversation evaluation: sentiment + relationship context → adjusted behavior
   - `resonance.py` — Cross-channel recognition and identity linking (not surveillance)
+  - `guardrails.py` — Content screening: banned words, topics, entities with operator overrides
+  - `data/` — Bundled JSON filter lists (banned_words, banned_topics, banned_entities)
   - `verify.py` — Challenge-response verification (stub in 0.1.0)
   - `storage.py` — MemoryStorage + FileStorage backends
 - `tests/` — pytest suite
@@ -33,3 +35,10 @@ pytest -v
 - `verify_challenge()` raises NotImplementedError in 0.1.0 — this is intentional
 - Resonance is recognition, not surveillance — only checks existing contacts, never mines external data
 - Linking is always explicit — matching npubs don't auto-merge
+- Guardrails: bundled defaults in `data/*.json`, operators can override via `extra_words`/`extra_topics`/`extra_entities`
+- ScreenResult.matched never exposes raw input — uses category tags like `[slurs]` for PII safety
+- ⚠️ Device secret is the root of all proxy npub derivation — call `export_secret()` after `create()` and store securely
+- `restore(secret_b64)` rebuilds an enclave from a backed-up secret
+- `displace(tier)` handles full-tier scenarios by demoting the weakest contact
+- `maintain(dry_run=True)` previews maintenance without making changes
+- `signal_history` on Contact tracks the last 10 interaction snapshots for temporal pattern detection

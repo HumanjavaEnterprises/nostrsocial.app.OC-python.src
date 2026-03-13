@@ -7,6 +7,7 @@ import pytest
 from nostrsocial import (
     BehaviorRules,
     CapacityError,
+    ConversationSignals,
     IdentityState,
     ListType,
     NEUTRAL_BEHAVIOR,
@@ -376,3 +377,216 @@ class TestDecay:
         c.last_interaction = time.time() - 60 * 86400
         removed = enclave.decay()
         assert len(removed) == 1
+
+
+class TestDeviceSecretBackup:
+    def test_export_secret(self):
+        e = SocialEnclave.create()
+        secret = e.export_secret()
+        assert isinstance(secret, str)
+        assert len(secret) > 0
+
+    def test_restore_produces_same_proxy(self):
+        """Same secret + same input = same proxy npub."""
+        e1 = SocialEnclave.create()
+        secret = e1.export_secret()
+        c1 = e1.add("alice@example.com", "email", Tier.CLOSE)
+
+        e2 = SocialEnclave.restore(secret)
+        c2 = e2.add("alice@example.com", "email", Tier.CLOSE)
+        assert c1.proxy_npub == c2.proxy_npub
+
+    def test_restore_different_secret_different_proxy(self):
+        e1 = SocialEnclave.create()
+        e2 = SocialEnclave.create()
+        c1 = e1.add("alice@example.com", "email", Tier.CLOSE)
+        c2 = e2.add("alice@example.com", "email", Tier.CLOSE)
+        assert c1.proxy_npub != c2.proxy_npub
+
+    def test_restore_with_custom_capacity(self):
+        e = SocialEnclave.restore(
+            SocialEnclave.create().export_secret(),
+            tier_capacity={Tier.INTIMATE: 10, Tier.CLOSE: 20, Tier.FAMILIAR: 50, Tier.KNOWN: 80},
+        )
+        assert e.slots_remaining["friends"] == 160  # 10+20+50+80
+
+
+class TestDisplacement:
+    def test_displacement_candidate_empty_tier(self):
+        e = SocialEnclave.create()
+        assert e.displacement_candidate(Tier.INTIMATE) is None
+
+    def test_displacement_candidate_tier_not_full(self):
+        e = SocialEnclave.create()
+        e.add("alice@example.com", "email", Tier.INTIMATE)
+        assert e.displacement_candidate(Tier.INTIMATE) is None  # 1/5, not full
+
+    def test_displacement_candidate_returns_oldest(self):
+        e = SocialEnclave.create(
+            tier_capacity={Tier.INTIMATE: 2, Tier.CLOSE: 15, Tier.FAMILIAR: 50, Tier.KNOWN: 80},
+        )
+        c1 = e.add("alice@example.com", "email", Tier.INTIMATE)
+        c1.last_interaction = time.time() - 10 * 86400  # 10 days ago
+        c2 = e.add("bob@example.com", "email", Tier.INTIMATE)
+        c2.last_interaction = time.time()  # Just now
+
+        candidate = e.displacement_candidate(Tier.INTIMATE)
+        assert candidate is not None
+        assert candidate.identifier == "alice@example.com"
+
+    def test_displace_moves_down_one_tier(self):
+        e = SocialEnclave.create(
+            tier_capacity={Tier.INTIMATE: 1, Tier.CLOSE: 15, Tier.FAMILIAR: 50, Tier.KNOWN: 80},
+        )
+        c = e.add("alice@example.com", "email", Tier.INTIMATE)
+        c.last_interaction = time.time() - 5 * 86400
+
+        displaced = e.displace(Tier.INTIMATE)
+        assert displaced is not None
+        assert displaced.tier == Tier.CLOSE
+        assert displaced.identifier == "alice@example.com"
+
+    def test_displace_known_goes_to_gray(self):
+        e = SocialEnclave.create(
+            tier_capacity={Tier.INTIMATE: 5, Tier.CLOSE: 15, Tier.FAMILIAR: 50, Tier.KNOWN: 1},
+        )
+        c = e.add("alice@example.com", "email", Tier.KNOWN)
+
+        displaced = e.displace(Tier.KNOWN)
+        assert displaced is not None
+        assert displaced.list_type == ListType.GRAY
+        assert displaced.tier is None
+
+    def test_displace_then_add_works(self):
+        """The full flow: tier full, displace, then add new contact."""
+        e = SocialEnclave.create(
+            tier_capacity={Tier.INTIMATE: 1, Tier.CLOSE: 15, Tier.FAMILIAR: 50, Tier.KNOWN: 80},
+        )
+        old = e.add("alice@example.com", "email", Tier.INTIMATE)
+        old.last_interaction = time.time() - 30 * 86400
+
+        e.displace(Tier.INTIMATE)
+        new = e.add("bob@example.com", "email", Tier.INTIMATE)
+        assert new.tier == Tier.INTIMATE
+        assert old.tier == Tier.CLOSE
+
+    def test_displace_empty_tier_returns_none(self):
+        e = SocialEnclave.create()
+        assert e.displace(Tier.INTIMATE) is None
+
+
+class TestSignalHistory:
+    def test_evaluate_records_signal(self):
+        e = SocialEnclave.create()
+        e.add("alice@example.com", "email", Tier.CLOSE)
+        e.evaluate("alice@example.com", "email", ConversationSignals(sentiment="sad"))
+
+        c = e._contacts.get_by_identifier("alice@example.com", "email")
+        assert len(c.signal_history) == 1
+        assert c.signal_history[0]["sentiment"] == "sad"
+        assert "ts" in c.signal_history[0]
+
+    def test_multiple_evaluations_build_history(self):
+        e = SocialEnclave.create()
+        e.add("alice@example.com", "email", Tier.CLOSE)
+        e.evaluate("alice@example.com", "email", ConversationSignals(hostility=0.3))
+        e.evaluate("alice@example.com", "email", ConversationSignals(hostility=0.5))
+        e.evaluate("alice@example.com", "email", ConversationSignals(hostility=0.8))
+
+        c = e._contacts.get_by_identifier("alice@example.com", "email")
+        assert len(c.signal_history) == 3
+        pattern = c.recent_pattern("hostility")
+        assert pattern == [0.3, 0.5, 0.8]  # Escalating
+
+    def test_history_capped_at_max(self):
+        e = SocialEnclave.create()
+        e.add("alice@example.com", "email", Tier.CLOSE)
+        for i in range(15):
+            e.evaluate("alice@example.com", "email", ConversationSignals(engagement=i / 15))
+
+        c = e._contacts.get_by_identifier("alice@example.com", "email")
+        assert len(c.signal_history) == 10  # Default max
+
+    def test_unknown_contact_no_history_recorded(self):
+        """Evaluating unknown contacts doesn't crash — just no history."""
+        e = SocialEnclave.create()
+        result = e.evaluate("nobody@example.com", "email", ConversationSignals())
+        assert result.action is not None  # Still works
+
+    def test_recent_pattern_empty(self):
+        from nostrsocial import Contact
+        c = Contact(
+            identifier="test@example.com",
+            channel="email",
+            list_type=ListType.FRIENDS,
+        )
+        assert c.recent_pattern("hostility") == []
+
+    def test_signal_history_roundtrip(self):
+        """Signal history survives serialization."""
+        from nostrsocial import Contact
+        c = Contact(
+            identifier="test@example.com",
+            channel="email",
+            list_type=ListType.FRIENDS,
+            tier=Tier.CLOSE,
+            proxy_npub="npub1test",
+        )
+        c.record_signal({"ts": 1000.0, "hostility": 0.5})
+        c.record_signal({"ts": 2000.0, "hostility": 0.8})
+
+        data = c.to_dict()
+        restored = Contact.from_dict(data)
+        assert len(restored.signal_history) == 2
+        assert restored.recent_pattern("hostility") == [0.5, 0.8]
+
+
+class TestMaintainDryRun:
+    def test_dry_run_no_changes(self):
+        e = SocialEnclave.create()
+        e.add("alice@example.com", "email", Tier.INTIMATE)
+        c = e._contacts.get_by_identifier("alice@example.com", "email")
+        c.last_interaction = time.time() - 31 * 86400  # Would drift
+
+        result = e.maintain(dry_run=True)
+        assert result["dry_run"] is True
+        assert len(result["would_drift"]) == 1
+        assert "[DRY RUN]" in result["summary"]
+
+        # Verify nothing actually changed
+        c2 = e._contacts.get_by_identifier("alice@example.com", "email")
+        assert c2.tier == Tier.INTIMATE  # Still intimate!
+
+    def test_dry_run_then_real_run(self):
+        e = SocialEnclave.create()
+        e.add("alice@example.com", "email", Tier.INTIMATE)
+        c = e._contacts.get_by_identifier("alice@example.com", "email")
+        c.last_interaction = time.time() - 31 * 86400
+
+        # Dry run — preview
+        preview = e.maintain(dry_run=True)
+        assert len(preview["would_drift"]) == 1
+
+        # Real run — now it changes
+        result = e.maintain()
+        assert len(result["drifted"]) == 1
+        c2 = e._contacts.get_by_identifier("alice@example.com", "email")
+        assert c2.tier == Tier.CLOSE  # Now demoted
+
+    def test_dry_run_gray_decay(self):
+        e = SocialEnclave.create()
+        e.gray("meh@example.com", "email")
+        c = e._contacts.get_by_identifier("meh@example.com", "email")
+        c.last_interaction = time.time() - 60 * 86400
+
+        result = e.maintain(dry_run=True)
+        assert len(result["would_decay"]) == 1
+
+        # Still there
+        assert e._contacts.get_by_identifier("meh@example.com", "email") is not None
+
+    def test_dry_run_all_clear(self):
+        e = SocialEnclave.create()
+        e.add("alice@example.com", "email", Tier.CLOSE)
+        result = e.maintain(dry_run=True)
+        assert "Nothing would change" in result["summary"]

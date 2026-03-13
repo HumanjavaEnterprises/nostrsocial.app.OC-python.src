@@ -303,6 +303,24 @@ class ContactList:
             removed.append(self._contacts.pop(npub))
         return removed
 
+    def displacement_candidate(self, tier: Tier) -> Optional[Contact]:
+        """Find the weakest contact in a tier — the one most likely to be displaced.
+
+        Returns the contact with the oldest last_interaction in the tier,
+        or None if the tier isn't full. This is the natural candidate for
+        demotion when a new, more deserving contact needs the slot.
+        """
+        if self.tier_slots_remaining(tier) > 0:
+            return None  # Tier has room, no displacement needed
+        tier_contacts = [
+            c for c in self._contacts.values()
+            if c.list_type == ListType.FRIENDS and c.tier == tier
+        ]
+        if not tier_contacts:
+            return None
+        # Oldest interaction = weakest claim to the tier
+        return min(tier_contacts, key=lambda c: c.last_interaction)
+
     def all_contacts(self) -> list[Contact]:
         """Return all contacts across all lists."""
         return list(self._contacts.values())

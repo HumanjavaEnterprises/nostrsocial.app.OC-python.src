@@ -22,6 +22,7 @@ from .types import (
     TIER_ORDER,
 )
 from .evaluate import Action, ConversationSignals, Evaluation, evaluate
+from .guardrails import Guardrails, ScreenResult
 from .resonance import LinkResult, Recognition, find_recognitions, merge_contacts
 from .verify import Challenge, create_challenge, verify_challenge
 
@@ -39,10 +40,12 @@ class SocialEnclave:
         device_secret: bytes,
         contacts: ContactList,
         storage: StorageBackend,
+        guardrails: Optional[Guardrails] = None,
     ) -> None:
         self._device_secret = device_secret
         self._contacts = contacts
         self._storage = storage
+        self._guardrails = guardrails or Guardrails()
 
     @classmethod
     def create(
@@ -53,6 +56,11 @@ class SocialEnclave:
         drift_thresholds: Optional[dict[Tier, float]] = None,
     ) -> SocialEnclave:
         """Create a new SocialEnclave with a fresh device secret.
+
+        ⚠️  IMPORTANT: The device secret is the root of all proxy npub derivation.
+        If lost, every proxy identity in this enclave becomes unrecoverable.
+        Call export_secret() immediately after creation and store the result
+        securely (e.g., encrypted backup, hardware vault, NostrKeep).
 
         Capacity and drift thresholds are configurable. Pass None for defaults.
         """
@@ -73,6 +81,39 @@ class SocialEnclave:
             secret = base64.b64decode(secret)
         cap_config = data.get("capacity_config")
         contacts = ContactList.from_dict(data.get("contacts", []), secret, cap_config)
+        return cls(secret, contacts, storage)
+
+    def export_secret(self) -> str:
+        """Export the device secret as a base64 string for secure backup.
+
+        ⚠️  This is the root key for all proxy npub derivation in this enclave.
+        Losing it means losing the ability to regenerate proxy identities.
+        Store it securely — encrypted backup, hardware vault, or NostrKeep.
+
+        Returns a base64-encoded string that can be passed to restore().
+        """
+        return base64.b64encode(self._device_secret).decode("ascii")
+
+    @classmethod
+    def restore(
+        cls,
+        secret_b64: str,
+        storage: Optional[StorageBackend] = None,
+        tier_capacity: Optional[dict[Tier, int]] = None,
+        list_capacity: Optional[dict[ListType, int]] = None,
+        drift_thresholds: Optional[dict[Tier, float]] = None,
+    ) -> SocialEnclave:
+        """Restore an enclave from a previously exported device secret.
+
+        Use this to rebuild an enclave after data loss or migration.
+        The same secret will derive the same proxy npubs for the same inputs,
+        so contacts added with the same identifier+channel will get the same
+        proxy identity.
+        """
+        if storage is None:
+            storage = MemoryStorage()
+        secret = base64.b64decode(secret_b64)
+        contacts = ContactList(secret, tier_capacity, list_capacity, drift_thresholds)
         return cls(secret, contacts, storage)
 
     def add(
@@ -309,6 +350,38 @@ class SocialEnclave:
             )
         return self._contacts.move(contact.proxy_npub, ListType.FRIENDS, new_tier)
 
+    def displacement_candidate(self, tier: Tier) -> Optional[Contact]:
+        """Find who would be displaced if a new contact needed this tier slot.
+
+        Returns the contact with the oldest last_interaction in the tier,
+        or None if the tier has room. This lets the agent (or operator)
+        make an informed decision before forcing a slot.
+        """
+        return self._contacts.displacement_candidate(tier)
+
+    def displace(self, tier: Tier) -> Optional[Contact]:
+        """Demote the weakest contact in a tier to make room for a new one.
+
+        Returns the displaced contact (now in the tier below), or None if the
+        tier wasn't full. The displaced contact moves down one tier — intimate→close,
+        close→familiar, familiar→known. Known contacts move to gray.
+
+        This is the answer to Kimi's "6th intimate" problem: scarcity is real,
+        but displacement is explicit, not silent.
+        """
+        candidate = self._contacts.displacement_candidate(tier)
+        if candidate is None:
+            return None  # Tier has room
+
+        tier_idx = TIER_ORDER.index(tier)
+        if tier_idx >= len(TIER_ORDER) - 1:
+            # Known → gray
+            candidate.list_type = ListType.GRAY
+            candidate.tier = None
+        else:
+            candidate.tier = TIER_ORDER[tier_idx + 1]
+        return candidate
+
     def get_behavior(self, identifier: str, channel: str) -> BehaviorRules:
         """Get behavioral rules for a contact. Returns NEUTRAL for unknowns."""
         contact = self._contacts.get_by_identifier(identifier, channel)
@@ -330,7 +403,40 @@ class SocialEnclave:
         approach guidance, and a recommended action (hold/promote/demote/watch/block).
         """
         contact = self._contacts.get_by_identifier(identifier, channel)
+
+        # Record signal snapshot for temporal pattern detection
+        if contact is not None:
+            contact.record_signal({
+                "ts": time.time(),
+                "sentiment": signals.sentiment,
+                "hostility": signals.hostility,
+                "vulnerability": signals.vulnerability,
+                "engagement": signals.engagement,
+                "boundary_violation": signals.boundary_violation,
+            })
+
         return evaluate(contact, signals)
+
+    def screen(self, text: str) -> ScreenResult:
+        """Screen conversation text for banned words, topics, or patterns.
+
+        Returns a ScreenResult with severity, category, and recommended action.
+        Use this before or alongside evaluate() to catch content that should
+        trigger immediate action regardless of relationship context.
+        """
+        return self._guardrails.screen(text)
+
+    def screen_entity(self, name: str) -> ScreenResult:
+        """Screen a display name or alias for known bad-actor patterns.
+
+        Use when processing contact requests or messages from unknown senders.
+        """
+        return self._guardrails.screen_entity(name)
+
+    @property
+    def guardrails(self) -> Guardrails:
+        """Access the guardrails engine for direct use or inspection."""
+        return self._guardrails
 
     @property
     def slots_remaining(self) -> dict[str, int]:
@@ -372,11 +478,31 @@ class SocialEnclave:
         """Remove stale gray-zone contacts."""
         return self._contacts.decay_gray(max_age_seconds)
 
-    def maintain(self) -> dict:
+    def maintain(self, dry_run: bool = False) -> dict:
         """Run all maintenance: drift friends, decay gray, return summary.
 
         This is the single call an agent should make periodically.
+
+        If dry_run=True, reports what WOULD happen without making any changes.
+        Useful for previewing maintenance impact before committing.
         """
+        if dry_run:
+            drifting = self.get_drifting(threshold_pct=1.0)  # Past 100% = would drift
+            # Estimate gray decay without actually removing
+            now = time.time()
+            would_decay = [
+                c for c in self._contacts.list_gray()
+                if (now - c.last_interaction) > 30 * 86400
+            ]
+            at_risk = self.get_drifting(threshold_pct=0.5)
+            return {
+                "dry_run": True,
+                "would_drift": drifting,
+                "would_decay": would_decay,
+                "at_risk": at_risk,
+                "summary": self._maintenance_summary_dry(drifting, would_decay, at_risk),
+            }
+
         drift_events = self.drift()
         decayed = self.decay()
         drifting = self.get_drifting()
@@ -406,6 +532,26 @@ class SocialEnclave:
             parts.append(f"{len(at_risk)} friend(s) at risk of drifting: {', '.join(names)}")
         if not parts:
             parts.append("All clear. No drift, no decay.")
+        return "\n".join(parts)
+
+    def _maintenance_summary_dry(
+        self,
+        would_drift: list[Contact],
+        would_decay: list[Contact],
+        at_risk: list[Contact],
+    ) -> str:
+        parts = ["[DRY RUN] Preview — no changes made."]
+        if would_drift:
+            names = [c.display_name or f"[{c.channel}]" for c in would_drift]
+            parts.append(f"{len(would_drift)} contact(s) WOULD drift: {', '.join(names)}")
+        if would_decay:
+            names = [c.display_name or f"[{c.channel}]" for c in would_decay]
+            parts.append(f"{len(would_decay)} gray contact(s) WOULD expire: {', '.join(names)}")
+        if at_risk:
+            names = [c.display_name or f"[{c.channel}]" for c in at_risk]
+            parts.append(f"{len(at_risk)} friend(s) approaching drift: {', '.join(names)}")
+        if len(parts) == 1:
+            parts.append("All clear. Nothing would change.")
         return "\n".join(parts)
 
     def network_shape(self) -> NetworkShape:

@@ -83,6 +83,7 @@ class Contact:
     notes: Optional[str] = None
     upgrade_hint: str = ""
     linked_channels: dict[str, str] = field(default_factory=dict)  # channel → identifier
+    signal_history: list[dict] = field(default_factory=list)  # Last N interaction snapshots
 
     def __repr__(self) -> str:
         """Safe repr that doesn't expose PII (identifiers, notes, npubs)."""
@@ -92,6 +93,33 @@ class Contact:
             f"tier={tier_label}, state={self.identity_state.value}, "
             f"interactions={self.interaction_count})"
         )
+
+    def record_signal(self, snapshot: dict, max_history: int = 10) -> None:
+        """Record a conversation signal snapshot for temporal pattern detection.
+
+        Keeps the last `max_history` snapshots. Each snapshot should include
+        at minimum a timestamp and the key signals (hostility, vulnerability, etc.).
+
+        This is how the enclave becomes "narrative-aware" — one hostile interaction
+        from an intimate friend is different from three in two weeks.
+        """
+        self.signal_history.append(snapshot)
+        if len(self.signal_history) > max_history:
+            self.signal_history = self.signal_history[-max_history:]
+
+    def recent_pattern(self, key: str, window: int = 5) -> list[float]:
+        """Extract the last N values of a signal key from history.
+
+        Returns a list of floats for the given key across the most recent
+        `window` snapshots. Useful for detecting escalation patterns
+        (e.g., rising hostility over consecutive interactions).
+        """
+        values = []
+        for snapshot in self.signal_history[-window:]:
+            val = snapshot.get(key)
+            if val is not None:
+                values.append(float(val))
+        return values
 
     @property
     def days_since_interaction(self) -> float:
@@ -118,6 +146,7 @@ class Contact:
             "notes": self.notes,
             "upgrade_hint": self.upgrade_hint,
             "linked_channels": self.linked_channels,
+            "signal_history": self.signal_history,
         }
 
     @classmethod
@@ -138,6 +167,7 @@ class Contact:
             notes=data.get("notes"),
             upgrade_hint=data.get("upgrade_hint", ""),
             linked_channels=data.get("linked_channels", {}),
+            signal_history=data.get("signal_history", []),
         )
 
 
