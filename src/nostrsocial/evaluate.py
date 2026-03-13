@@ -32,12 +32,18 @@ class Action(Enum):
     REACH_OUT = "reach_out"  # Proactively reconnect
 
 
+def _clamp(value: float) -> float:
+    """Clamp a signal value to 0.0-1.0."""
+    return max(0.0, min(1.0, value))
+
+
 @dataclass
 class ConversationSignals:
     """Signals captured from a conversation for evaluation.
 
     All values are 0.0-1.0 floats representing intensity.
     The agent's sentiment analysis populates these.
+    Values outside 0.0-1.0 are clamped on access.
     """
 
     sentiment: str = "neutral"  # angry, sad, excited, neutral, vulnerable, grateful, hostile
@@ -48,6 +54,16 @@ class ConversationSignals:
     topic_depth: float = 0.3  # Surface chat (0) vs deep conversation (1)
     trust_signal: float = 0.0  # Did they trust you with something?
     boundary_violation: float = 0.0  # Did they cross a line?
+
+    def __post_init__(self) -> None:
+        """Clamp all float signals to 0.0-1.0."""
+        self.vulnerability = _clamp(self.vulnerability)
+        self.reciprocity = _clamp(self.reciprocity)
+        self.hostility = _clamp(self.hostility)
+        self.engagement = _clamp(self.engagement)
+        self.topic_depth = _clamp(self.topic_depth)
+        self.trust_signal = _clamp(self.trust_signal)
+        self.boundary_violation = _clamp(self.boundary_violation)
 
 
 @dataclass

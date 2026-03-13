@@ -96,6 +96,23 @@ class TestContact:
         assert restored.interaction_count == 42
         assert restored.notes == "Met at conference"
 
+    def test_repr_hides_pii(self):
+        contact = Contact(
+            identifier="secret@example.com",
+            channel="email",
+            list_type=ListType.FRIENDS,
+            tier=Tier.CLOSE,
+            proxy_npub="npub1test",
+            claimed_npub="npub1secret",
+            notes="private note",
+        )
+        r = repr(contact)
+        assert "secret@example.com" not in r
+        assert "npub1secret" not in r
+        assert "private note" not in r
+        assert "email" in r
+        assert "close" in r
+
     def test_linked_channels_roundtrip(self):
         contact = Contact(
             identifier="alice@example.com",
@@ -206,6 +223,23 @@ class TestDriftEvent:
             days_silent=200.0,
         )
         assert "gray" in event.summary
+
+    def test_summary_no_display_name_uses_channel(self):
+        """Without display_name, summary uses channel tag, not raw identifier."""
+        contact = Contact(
+            identifier="secret@example.com",
+            channel="email",
+            list_type=ListType.FRIENDS,
+        )
+        event = DriftEvent(
+            contact=contact,
+            from_tier=Tier.CLOSE,
+            to_tier=Tier.FAMILIAR,
+            to_list=ListType.FRIENDS,
+            days_silent=45.0,
+        )
+        assert "secret@example.com" not in event.summary
+        assert "[email]" in event.summary
 
 
 class TestNetworkShape:

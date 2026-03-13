@@ -241,6 +241,28 @@ class TestNetworkShape:
         assert shape.profile_type == "fading"
         assert shape.avg_interaction_days > 30
 
+    def test_ghost_network(self):
+        """Only gray contacts, no friends, no blocks → ghost."""
+        e = SocialEnclave.create()
+        e.gray("meh1@example.com", "email")
+        e.gray("meh2@example.com", "email")
+        shape = e.network_shape()
+        assert shape.profile_type == "ghost"
+        assert shape.friends_count == 0
+        assert shape.gray_count == 2
+        assert "close" in shape.narrative.lower() or "gray" in shape.narrative.lower()
+
+    def test_fortress_network(self):
+        """Only blocked contacts, no friends → fortress."""
+        e = SocialEnclave.create()
+        for i in range(5):
+            e.block(f"spam{i}@bad.com", "email")
+        shape = e.network_shape()
+        assert shape.profile_type == "fortress"
+        assert shape.block_count == 5
+        assert shape.friends_count == 0
+        assert "walls" in shape.narrative.lower() or "blocked" in shape.narrative.lower()
+
 
 class TestConvenienceProperties:
     def test_friend_count(self, enclave):

@@ -278,3 +278,114 @@ class TestEnclavEvaluate:
         )
         assert result.adjusted_warmth == 0.0
         assert result.adjusted_token_budget == 0
+
+
+class TestSignalClamping:
+    """Signals outside 0.0-1.0 are clamped, not passed through."""
+
+    def test_negative_hostility_clamped(self):
+        signals = ConversationSignals(hostility=-1.0)
+        assert signals.hostility == 0.0
+
+    def test_high_hostility_clamped(self):
+        signals = ConversationSignals(hostility=5.0)
+        assert signals.hostility == 1.0
+
+    def test_negative_vulnerability_clamped(self):
+        signals = ConversationSignals(vulnerability=-0.5)
+        assert signals.vulnerability == 0.0
+
+    def test_high_boundary_violation_clamped(self):
+        signals = ConversationSignals(boundary_violation=2.0)
+        assert signals.boundary_violation == 1.0
+
+    def test_all_signals_clamp(self):
+        signals = ConversationSignals(
+            vulnerability=10.0, reciprocity=-1.0, hostility=5.0,
+            engagement=-0.1, topic_depth=2.0, trust_signal=99.0,
+            boundary_violation=-5.0,
+        )
+        assert signals.vulnerability == 1.0
+        assert signals.reciprocity == 0.0
+        assert signals.hostility == 1.0
+        assert signals.engagement == 0.0
+        assert signals.topic_depth == 1.0
+        assert signals.trust_signal == 1.0
+        assert signals.boundary_violation == 0.0
+
+    def test_valid_signals_unchanged(self):
+        signals = ConversationSignals(hostility=0.5, vulnerability=0.3)
+        assert signals.hostility == 0.5
+        assert signals.vulnerability == 0.3
+
+
+class TestHostilityOverridesVulnerability:
+    """When both hostility and vulnerability are high, hostility wins (checked first)."""
+
+    def test_intimate_hostility_wins(self):
+        result = evaluate(
+            _friend(Tier.INTIMATE),
+            _signals(hostility=0.8, vulnerability=0.8),
+        )
+        # Hostility check fires first — grace for intimate friend
+        assert result.action == Action.WATCH
+        assert "hostility" in result.rationale.lower() or "hostile" in result.rationale.lower()
+
+    def test_known_hostility_wins(self):
+        result = evaluate(
+            _friend(Tier.KNOWN),
+            _signals(hostility=0.8, vulnerability=0.8),
+        )
+        assert result.action == Action.DEMOTE
+
+
+class TestBoundaryEdgeCases:
+    def test_boundary_at_exact_threshold(self):
+        """boundary_violation=0.5 does NOT trigger boundary handler (> 0.5 required)."""
+        result = evaluate(
+            _friend(Tier.CLOSE),
+            _signals(boundary_violation=0.5),
+        )
+        # Falls through to default steady-state
+        assert result.action == Action.HOLD
+
+    def test_severe_boundary_blocks_even_intimate(self):
+        result = evaluate(
+            _friend(Tier.INTIMATE),
+            _signals(boundary_violation=0.9),
+        )
+        assert result.action == Action.BLOCK
+
+
+class TestPromoteDemoteDirection:
+    """promote() and demote() enforce directionality."""
+
+    def test_promote_wrong_direction_raises(self):
+        e = SocialEnclave.create()
+        e.add("alice@example.com", "email", Tier.INTIMATE)
+        with pytest.raises(ValueError, match="higher"):
+            e.promote("alice@example.com", "email", Tier.KNOWN)
+
+    def test_demote_wrong_direction_raises(self):
+        e = SocialEnclave.create()
+        e.add("alice@example.com", "email", Tier.KNOWN)
+        with pytest.raises(ValueError, match="lower"):
+            e.demote("alice@example.com", "email", Tier.INTIMATE)
+
+    def test_promote_same_tier_raises(self):
+        e = SocialEnclave.create()
+        e.add("alice@example.com", "email", Tier.CLOSE)
+        with pytest.raises(ValueError):
+            e.promote("alice@example.com", "email", Tier.CLOSE)
+
+    def test_promote_valid_succeeds(self):
+        e = SocialEnclave.create()
+        e.add("alice@example.com", "email", Tier.KNOWN)
+        result = e.promote("alice@example.com", "email", Tier.FAMILIAR)
+        assert result.tier == Tier.FAMILIAR
+
+    def test_demote_valid_succeeds(self):
+        e = SocialEnclave.create()
+        e.add("alice@example.com", "email", Tier.INTIMATE)
+        result = e.demote("alice@example.com", "email", Tier.CLOSE)
+        assert result.tier == Tier.CLOSE

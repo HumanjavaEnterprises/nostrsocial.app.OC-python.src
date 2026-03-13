@@ -183,7 +183,7 @@ class DriftEvent:
             to_label = "gray"
         else:
             to_label = self.to_tier.value if self.to_tier else "unknown"
-        name = self.contact.display_name or self.contact.identifier
+        name = self.contact.display_name or f"[{self.contact.channel}]"
         return f"{name}: {from_label} → {to_label} ({int(self.days_silent)}d silent)"
 
 

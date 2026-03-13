@@ -278,17 +278,35 @@ class SocialEnclave:
         return c2, c1
 
     def promote(self, identifier: str, channel: str, new_tier: Tier) -> Contact:
-        """Move a contact to a higher trust tier in the friends list."""
+        """Move a contact to a higher trust tier (toward intimate)."""
         contact = self._contacts.get_by_identifier(identifier, channel)
         if contact is None:
             raise KeyError(f"Contact not found on {channel}")
+        if contact.list_type != ListType.FRIENDS or contact.tier is None:
+            raise ValueError("Can only promote friends with a tier")
+        current_idx = TIER_ORDER.index(contact.tier)
+        new_idx = TIER_ORDER.index(new_tier)
+        if new_idx >= current_idx:
+            raise ValueError(
+                f"Cannot promote from {contact.tier.value} to {new_tier.value} — "
+                f"new tier must be higher (closer to intimate)"
+            )
         return self._contacts.move(contact.proxy_npub, ListType.FRIENDS, new_tier)
 
     def demote(self, identifier: str, channel: str, new_tier: Tier) -> Contact:
-        """Move a contact to a lower trust tier in the friends list."""
+        """Move a contact to a lower trust tier (toward known)."""
         contact = self._contacts.get_by_identifier(identifier, channel)
         if contact is None:
             raise KeyError(f"Contact not found on {channel}")
+        if contact.list_type != ListType.FRIENDS or contact.tier is None:
+            raise ValueError("Can only demote friends with a tier")
+        current_idx = TIER_ORDER.index(contact.tier)
+        new_idx = TIER_ORDER.index(new_tier)
+        if new_idx <= current_idx:
+            raise ValueError(
+                f"Cannot demote from {contact.tier.value} to {new_tier.value} — "
+                f"new tier must be lower (closer to known)"
+            )
         return self._contacts.move(contact.proxy_npub, ListType.FRIENDS, new_tier)
 
     def get_behavior(self, identifier: str, channel: str) -> BehaviorRules:
@@ -381,10 +399,10 @@ class SocialEnclave:
             for e in drifted:
                 parts.append(f"  {e.summary}")
         if decayed:
-            names = [c.display_name or c.identifier for c in decayed]
+            names = [c.display_name or f"[{c.channel}]" for c in decayed]
             parts.append(f"{len(decayed)} gray contact(s) expired: {', '.join(names)}")
         if at_risk:
-            names = [c.display_name or c.identifier for c in at_risk]
+            names = [c.display_name or f"[{c.channel}]" for c in at_risk]
             parts.append(f"{len(at_risk)} friend(s) at risk of drifting: {', '.join(names)}")
         if not parts:
             parts.append("All clear. No drift, no decay.")
