@@ -96,6 +96,19 @@ class TestContact:
         assert restored.interaction_count == 42
         assert restored.notes == "Met at conference"
 
+    def test_linked_channels_roundtrip(self):
+        contact = Contact(
+            identifier="alice@example.com",
+            channel="email",
+            list_type=ListType.FRIENDS,
+            tier=Tier.CLOSE,
+            proxy_npub="npub1test",
+            linked_channels={"twitter": "@alice", "phone": "+15551234567"},
+        )
+        data = contact.to_dict()
+        restored = Contact.from_dict(data)
+        assert restored.linked_channels == {"twitter": "@alice", "phone": "+15551234567"}
+
     def test_defaults(self):
         contact = Contact(
             identifier="bob@example.com",

@@ -55,7 +55,8 @@ DEFAULT_LIST_CAPACITY: dict[ListType, int] = {
 TIER_CAPACITY = DEFAULT_TIER_CAPACITY
 LIST_CAPACITY = DEFAULT_LIST_CAPACITY
 
-# Default drift thresholds: days of silence before demotion
+# Default drift thresholds: seconds of silence before demotion
+# Pass these in SECONDS (not days) when customizing via SocialEnclave.create()
 DEFAULT_DRIFT_THRESHOLDS: dict[Tier, float] = {
     Tier.INTIMATE: 30 * 86400,   # 30 days → demote to close
     Tier.CLOSE: 60 * 86400,      # 60 days → demote to familiar

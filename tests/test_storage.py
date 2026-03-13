@@ -72,3 +72,42 @@ class TestFileStorage:
         loaded = storage.load()
         assert loaded["outer"]["secret"] == b"\xaa\xbb\xcc\xdd"
         assert loaded["outer"]["label"] == "test"
+
+    def test_atomic_write_no_temp_file_left(self, tmp_path):
+        """Temp file should not exist after successful save."""
+        path = str(tmp_path / "data.json")
+        storage = FileStorage(path)
+        storage.save({"test": True})
+        assert not os.path.exists(path + ".tmp")
+        assert os.path.exists(path)
+
+    def test_contacts_with_linked_channels_roundtrip(self, tmp_path):
+        """Contact dicts with linked_channels survive FileStorage roundtrip."""
+        path = str(tmp_path / "data.json")
+        storage = FileStorage(path)
+        data = {
+            "device_secret": b"\x01" * 32,
+            "contacts": [
+                {
+                    "identifier": "alice@example.com",
+                    "channel": "email",
+                    "list_type": "friends",
+                    "tier": "close",
+                    "identity_state": "proxy",
+                    "proxy_npub": "npub1test",
+                    "claimed_npub": None,
+                    "display_name": "Alice",
+                    "added_at": 1000.0,
+                    "last_interaction": 2000.0,
+                    "interaction_count": 5,
+                    "notes": None,
+                    "upgrade_hint": "",
+                    "linked_channels": {"twitter": "@alice", "phone": "+15551234567"},
+                }
+            ],
+            "version": "0.1.0",
+        }
+        storage.save(data)
+        loaded = storage.load()
+        contact = loaded["contacts"][0]
+        assert contact["linked_channels"] == {"twitter": "@alice", "phone": "+15551234567"}

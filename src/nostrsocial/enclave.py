@@ -159,7 +159,7 @@ class SocialEnclave:
         have a relationship with. The question is: "Have we met before,
         just on a different channel?"
         """
-        all_contacts = list(self._contacts._contacts.values())
+        all_contacts = self._contacts.all_contacts()
         return find_recognitions(all_contacts, identifier, channel, claimed_npub, display_name)
 
     def link(
@@ -187,14 +187,33 @@ class SocialEnclave:
         contact2 = self._contacts.get_by_identifier(identifier2, channel2)
 
         if contact1 is None:
-            raise KeyError(f"Contact not found: {identifier1} on {channel1}")
+            raise KeyError(f"Contact not found on {channel1}")
         if contact2 is None:
-            raise KeyError(f"Contact not found: {identifier2} on {channel2}")
+            raise KeyError(f"Contact not found on {channel2}")
         if contact1.proxy_npub == contact2.proxy_npub:
             raise ValueError("Cannot link a contact to itself")
+        if contact1.list_type == ListType.BLOCK or contact2.list_type == ListType.BLOCK:
+            raise ValueError("Cannot link blocked contacts — unblock first")
 
         # Decide who's primary: higher tier wins, then more interactions, then earlier added
         primary, secondary = self._pick_primary(contact1, contact2)
+
+        # Check if the merge would promote the primary to a tier that's at capacity
+        if secondary.tier and primary.tier:
+            s_idx = TIER_ORDER.index(secondary.tier)
+            p_idx = TIER_ORDER.index(primary.tier)
+            if s_idx < p_idx:  # Secondary has higher tier
+                tier_count = sum(
+                    1 for c in self._contacts._contacts.values()
+                    if c.list_type == ListType.FRIENDS and c.tier == secondary.tier
+                    and c.proxy_npub != primary.proxy_npub
+                    and c.proxy_npub != secondary.proxy_npub
+                )
+                if tier_count >= self._contacts._tier_capacity[secondary.tier]:
+                    raise CapacityError(
+                        f"{secondary.tier.value} tier is at capacity — "
+                        f"cannot promote via link"
+                    )
 
         # Remember interaction count before merge
         secondary_count = secondary.interaction_count
@@ -262,14 +281,14 @@ class SocialEnclave:
         """Move a contact to a higher trust tier in the friends list."""
         contact = self._contacts.get_by_identifier(identifier, channel)
         if contact is None:
-            raise KeyError(f"Contact not found: {identifier}")
+            raise KeyError(f"Contact not found on {channel}")
         return self._contacts.move(contact.proxy_npub, ListType.FRIENDS, new_tier)
 
     def demote(self, identifier: str, channel: str, new_tier: Tier) -> Contact:
         """Move a contact to a lower trust tier in the friends list."""
         contact = self._contacts.get_by_identifier(identifier, channel)
         if contact is None:
-            raise KeyError(f"Contact not found: {identifier}")
+            raise KeyError(f"Contact not found on {channel}")
         return self._contacts.move(contact.proxy_npub, ListType.FRIENDS, new_tier)
 
     def get_behavior(self, identifier: str, channel: str) -> BehaviorRules:

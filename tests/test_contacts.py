@@ -416,3 +416,48 @@ class TestSerialization:
         assert len(restored.list_friends()) == 1
         assert len(restored.list_blocked()) == 1
         assert len(restored.list_gray()) == 1
+
+
+class TestEdgeCases:
+    def test_exact_capacity_succeeds(self, secret):
+        """Adding at exactly the capacity limit should succeed."""
+        cl = ContactList(secret, tier_capacity={
+            Tier.INTIMATE: 2, Tier.CLOSE: 2, Tier.FAMILIAR: 2, Tier.KNOWN: 2,
+        })
+        cl.add("a@example.com", "email", ListType.FRIENDS, Tier.INTIMATE)
+        c2 = cl.add("b@example.com", "email", ListType.FRIENDS, Tier.INTIMATE)
+        assert c2 is not None
+        # Now overflow
+        with pytest.raises(CapacityError):
+            cl.add("c@example.com", "email", ListType.FRIENDS, Tier.INTIMATE)
+
+    def test_drift_at_exact_threshold(self, cl):
+        """Silence exactly at the threshold DOES trigger drift (not < threshold)."""
+        contact = cl.add("alice@example.com", "email", ListType.FRIENDS, Tier.INTIMATE)
+        contact.last_interaction = time.time() - 30 * 86400  # Exactly at threshold
+        events = cl.drift()
+        assert len(events) == 1
+        assert events[0].to_tier == Tier.CLOSE
+
+    def test_known_drift_blocked_by_full_gray(self, secret):
+        """Known contact can't drift to gray if gray list is full."""
+        cl = ContactList(secret, list_capacity={
+            ListType.FRIENDS: 150, ListType.BLOCK: 50, ListType.GRAY: 1,
+        })
+        cl.add("filler@example.com", "email", ListType.GRAY)  # Fill gray
+        contact = cl.add("alice@example.com", "email", ListType.FRIENDS, Tier.KNOWN)
+        contact.last_interaction = time.time() - 181 * 86400
+        events = cl.drift()
+        assert len(events) == 0  # Can't drift — gray is full
+        assert contact.tier == Tier.KNOWN  # Stays put
+
+    def test_duplicate_add_overwrites(self, cl):
+        """Adding the same identifier+channel again overwrites the contact."""
+        c1 = cl.add("alice@example.com", "email", ListType.FRIENDS, Tier.CLOSE)
+        cl.touch(c1.proxy_npub)
+        cl.touch(c1.proxy_npub)
+        assert c1.interaction_count == 2
+        # Re-add resets the contact
+        c2 = cl.add("alice@example.com", "email", ListType.FRIENDS, Tier.KNOWN)
+        assert c2.interaction_count == 0
+        assert c2.tier == Tier.KNOWN

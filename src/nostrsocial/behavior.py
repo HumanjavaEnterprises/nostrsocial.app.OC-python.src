@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from .types import BehaviorRules, Contact, IdentityState, Tier
+from .types import BehaviorRules, Contact, IdentityState, ListType, Tier
 
 
 # Behavioral parameters for each trust tier
@@ -85,8 +85,6 @@ def get_behavior(contact: Optional[Contact] = None) -> BehaviorRules:
     """Return behavioral rules for a contact. Returns NEUTRAL for None."""
     if contact is None:
         return NEUTRAL_BEHAVIOR
-
-    from .types import ListType
 
     if contact.list_type == ListType.BLOCK:
         return BLOCK_BEHAVIOR

@@ -25,7 +25,7 @@ from .enclave import SocialEnclave
 from .evaluate import Action, ConversationSignals, Evaluation, evaluate
 from .proxy import derive_proxy_npub
 from .resonance import LinkResult, Recognition
-from .storage import FileStorage, MemoryStorage
+from .storage import FileStorage, MemoryStorage, StorageBackend
 from .verify import Challenge
 
 __version__ = "0.1.0"
@@ -59,6 +59,7 @@ __all__ = [
     # Storage
     "FileStorage",
     "MemoryStorage",
+    "StorageBackend",
     # Resonance
     "LinkResult",
     "Recognition",

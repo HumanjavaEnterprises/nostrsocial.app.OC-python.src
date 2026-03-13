@@ -42,9 +42,19 @@ class FileStorage:
 
     def save(self, data: dict) -> None:
         serializable = _prepare_for_json(data)
-        with open(self._path, "w") as f:
-            json.dump(serializable, f, indent=2)
-        os.chmod(self._path, 0o600)
+        # Write to temp file then rename for atomicity + correct permissions from creation
+        tmp_path = self._path + ".tmp"
+        fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(serializable, f, indent=2)
+            os.rename(tmp_path, self._path)
+        except BaseException:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
     def load(self) -> Optional[dict]:
         if not os.path.exists(self._path):

@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
-from .behavior import get_behavior, TIER_BEHAVIORS
+from .behavior import get_behavior
 from .types import (
     BehaviorRules,
     Contact,

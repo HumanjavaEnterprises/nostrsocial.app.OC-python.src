@@ -303,6 +303,10 @@ class ContactList:
             removed.append(self._contacts.pop(npub))
         return removed
 
+    def all_contacts(self) -> list[Contact]:
+        """Return all contacts across all lists."""
+        return list(self._contacts.values())
+
     def to_dict(self) -> list[dict]:
         """Serialize all contacts."""
         return [c.to_dict() for c in self._contacts.values()]

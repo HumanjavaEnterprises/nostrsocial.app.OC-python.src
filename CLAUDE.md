@@ -27,7 +27,7 @@ pytest -v
 ## Conventions
 
 - Python 3.10+, hatchling build, ruff linter (100 char line length)
-- Dependency: `nostrkey>=0.1.1` only
+- Dependency: `bech32>=1.2.0` only (nostrkey removed — proxy.py implements bech32 encoding directly)
 - Capacity limits are constants in `types.py` — do not bypass them
 - Proxy npubs are deterministic (HMAC-SHA256) — same input always produces same output
 - `verify_challenge()` raises NotImplementedError in 0.1.0 — this is intentional

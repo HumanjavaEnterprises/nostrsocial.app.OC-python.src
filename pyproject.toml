@@ -34,7 +34,6 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
 ]
 dependencies = [
-    "nostrkey>=0.1.1",
     "bech32>=1.2.0",
 ]
 
