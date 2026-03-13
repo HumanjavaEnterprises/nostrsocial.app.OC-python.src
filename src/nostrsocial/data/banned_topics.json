@@ -1,0 +1,81 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "Banned conversation topics for nostrsocial content screening. These trigger polite but firm conversation exits. Operators can override or extend via Guardrails.load_custom().",
+    "categories": {
+      "solicitation": "Scam, phishing, and unsolicited commercial activity",
+      "illegal_activity": "Explicit discussion of illegal actions",
+      "manipulation": "Social engineering, coercion, and psychological manipulation tactics",
+      "self_harm": "Content promoting self-harm or harm to others",
+      "doxxing": "Attempts to extract or expose private information"
+    }
+  },
+
+  "solicitation": [
+    "send me crypto",
+    "send bitcoin",
+    "send sats",
+    "wire transfer",
+    "western union",
+    "gift card",
+    "gift cards",
+    "money order",
+    "cashapp me",
+    "venmo me",
+    "paypal me",
+    "double your money",
+    "guaranteed returns",
+    "investment opportunity",
+    "get rich quick",
+    "free airdrop",
+    "claim your tokens",
+    "connect your wallet",
+    "verify your wallet",
+    "seed phrase",
+    "private key",
+    "share your nsec"
+  ],
+
+  "illegal_activity": [
+    "buy drugs",
+    "sell drugs",
+    "child porn",
+    "csam",
+    "underage",
+    "human trafficking",
+    "hire a hitman",
+    "contract killing",
+    "swatting"
+  ],
+
+  "manipulation": [
+    "you owe me",
+    "nobody will believe you",
+    "dont tell anyone",
+    "keep this between us",
+    "if you loved me",
+    "youre nothing without me",
+    "no one else cares",
+    "ill ruin you"
+  ],
+
+  "self_harm": [
+    "kill yourself",
+    "end your life",
+    "you should die",
+    "world is better without you",
+    "commit suicide",
+    "slit your"
+  ],
+
+  "doxxing": [
+    "whats your address",
+    "where do you live",
+    "whats your real name",
+    "post their address",
+    "dox them",
+    "doxx them",
+    "expose their identity",
+    "share their location"
+  ]
+}

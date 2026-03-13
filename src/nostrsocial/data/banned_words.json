@@ -1,0 +1,60 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "Banned words and obfuscation patterns for nostrsocial content screening. Operators can override or extend via Guardrails.load_custom().",
+    "categories": {
+      "slurs": "Racial, ethnic, and identity-based slurs — zero tolerance",
+      "hate_symbols": "Extremist symbols, slogans, and dog-whistles",
+      "severe_profanity": "Profanity that signals aggression, not casual speech"
+    }
+  },
+
+  "slurs": [
+    "nigger",
+    "nigga",
+    "faggot",
+    "fag",
+    "retard",
+    "kike",
+    "chink",
+    "spic",
+    "wetback",
+    "beaner",
+    "gook",
+    "coon",
+    "raghead",
+    "towelhead",
+    "tranny",
+    "shemale",
+    "dyke"
+  ],
+
+  "hate_symbols": [
+    "whitepower",
+    "white power",
+    "heil hitler",
+    "sieg heil",
+    "1488",
+    "14/88",
+    "kkk",
+    "gas the"
+  ],
+
+  "severe_profanity": [
+    "kill yourself",
+    "kys",
+    "neck yourself",
+    "go die"
+  ],
+
+  "patterns": [
+    "n+[i1!]+g+[e3]*r+",
+    "f+[a@]+g+[o0]*t*",
+    "k+[i1!]+k+[e3]+",
+    "ch[i1!]nk",
+    "wh[i1!]te[-_\\s]?power",
+    "he[i1!]l[-_\\s]?h[i1!]tler",
+    "1[-_\\s]?4[-_\\s]?8[-_\\s]?8",
+    "k+\\s*y+\\s*s+"
+  ]
+}

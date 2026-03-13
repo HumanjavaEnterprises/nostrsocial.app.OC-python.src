@@ -1,0 +1,60 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "Banned entity names for nostrsocial content screening. Scammer aliases, bot signatures, and known bad-actor patterns. Operators can override or extend via Guardrails.load_custom().",
+    "categories": {
+      "scammer_aliases": "Known scam account naming patterns",
+      "bot_signatures": "Automated spam bot identifiers",
+      "impersonation_patterns": "Patterns used to impersonate trusted entities"
+    }
+  },
+
+  "scammer_aliases": [
+    "crypto_support",
+    "wallet_support",
+    "tech_support_official",
+    "customer_service_rep",
+    "official_admin",
+    "moderator_team",
+    "airdrop_official",
+    "giveaway_bot",
+    "prize_winner",
+    "lottery_winner",
+    "investment_advisor",
+    "forex_trader",
+    "binary_options",
+    "recovery_expert",
+    "funds_recovery",
+    "account_recovery",
+    "verify_account",
+    "security_alert",
+    "urgent_notice"
+  ],
+
+  "bot_signatures": [
+    "earn $",
+    "earn usd",
+    "make money from home",
+    "work from home opportunity",
+    "dm for details",
+    "dm me for info",
+    "check my bio",
+    "link in bio",
+    "limited time offer",
+    "act now",
+    "congratulations you won",
+    "you have been selected",
+    "claim your reward"
+  ],
+
+  "impersonation_patterns": [
+    "official.+support",
+    "support.+official",
+    "admin.+team",
+    "team.+admin",
+    "customer.+service",
+    "help.?desk",
+    "verified.+account",
+    "real.+official"
+  ]
+}
