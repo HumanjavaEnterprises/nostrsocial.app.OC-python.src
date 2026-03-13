@@ -17,6 +17,8 @@ pytest -v
   - `contacts.py` — ContactList CRUD with slot enforcement
   - `behavior.py` — Tier → behavioral rules mapping
   - `proxy.py` — HMAC-based proxy npub derivation
+  - `evaluate.py` — Conversation evaluation: sentiment + relationship context → adjusted behavior
+  - `resonance.py` — Cross-channel recognition and identity linking (not surveillance)
   - `verify.py` — Challenge-response verification (stub in 0.1.0)
   - `storage.py` — MemoryStorage + FileStorage backends
 - `tests/` — pytest suite
@@ -29,3 +31,5 @@ pytest -v
 - Capacity limits are constants in `types.py` — do not bypass them
 - Proxy npubs are deterministic (HMAC-SHA256) — same input always produces same output
 - `verify_challenge()` raises NotImplementedError in 0.1.0 — this is intentional
+- Resonance is recognition, not surveillance — only checks existing contacts, never mines external data
+- Linking is always explicit — matching npubs don't auto-merge
