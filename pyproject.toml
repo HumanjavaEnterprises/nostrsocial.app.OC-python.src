@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nostrsocial"
+version = "0.1.0"
+description = "Social graph manager for OpenClaw AI agents — contacts, trust tiers, and identity verification over Nostr"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Humanjava Enterprises", email = "dev@humanjava.com" },
+]
+keywords = [
+    "nostr",
+    "social",
+    "contacts",
+    "openclaw",
+    "ai",
+    "trust",
+    "sovereign",
+    "identity",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Communications",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "nostrkey>=0.1.1",
+    "bech32>=1.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+]
+
+[project.urls]
+Homepage = "https://loginwithnostr.com/openclaw"
+Repository = "https://github.com/HumanjavaEnterprises/nostrsocial.app.OC-python.src"
+Documentation = "https://loginwithnostr.com/openclaw"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nostrsocial"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
