@@ -22,6 +22,7 @@ from .types import (
     TIER_ORDER,
 )
 from .evaluate import Action, ConversationSignals, Evaluation, evaluate
+from .resonance import LinkResult, Recognition, find_recognitions, merge_contacts
 from .verify import Challenge, create_challenge, verify_challenge
 
 
@@ -136,6 +137,126 @@ class SocialEnclave:
     def touch(self, identifier: str, channel: str) -> Optional[Contact]:
         """Record an interaction with a contact. Call this on every message."""
         return self._contacts.touch_by_identifier(identifier, channel)
+
+    # --- Cross-channel recognition ---
+    # This is about resonance, not surveillance. We're not mining the internet.
+    # We're recognizing someone we already have a relationship with,
+    # so they get the continuity they deserve across channels.
+
+    def recognize(
+        self,
+        identifier: str,
+        channel: str,
+        claimed_npub: Optional[str] = None,
+        display_name: Optional[str] = None,
+    ) -> list[Recognition]:
+        """Check if a new contact might be someone you already know.
+
+        Call this when someone new appears on a channel. It checks your
+        existing contacts for potential matches — same npub, same display name.
+
+        This is recognition, not search. It only looks at people you already
+        have a relationship with. The question is: "Have we met before,
+        just on a different channel?"
+        """
+        all_contacts = list(self._contacts._contacts.values())
+        return find_recognitions(all_contacts, identifier, channel, claimed_npub, display_name)
+
+    def link(
+        self,
+        identifier1: str,
+        channel1: str,
+        identifier2: str,
+        channel2: str,
+    ) -> LinkResult:
+        """Link two channel identities as the same person.
+
+        "alice@email and @alicedev on Twitter are the same person."
+
+        The contact with the stronger relationship (higher tier, more interactions)
+        becomes primary. The other's history folds in — interaction counts combine,
+        linked_channels tracks the connection, and the best identity state wins.
+
+        The secondary contact is removed from the graph. One person, one entry,
+        multiple channels remembered.
+
+        This requires explicit intent. The agent must decide these are the same
+        person — we never auto-link. Trust is earned, not assumed.
+        """
+        contact1 = self._contacts.get_by_identifier(identifier1, channel1)
+        contact2 = self._contacts.get_by_identifier(identifier2, channel2)
+
+        if contact1 is None:
+            raise KeyError(f"Contact not found: {identifier1} on {channel1}")
+        if contact2 is None:
+            raise KeyError(f"Contact not found: {identifier2} on {channel2}")
+        if contact1.proxy_npub == contact2.proxy_npub:
+            raise ValueError("Cannot link a contact to itself")
+
+        # Decide who's primary: higher tier wins, then more interactions, then earlier added
+        primary, secondary = self._pick_primary(contact1, contact2)
+
+        # Remember interaction count before merge
+        secondary_count = secondary.interaction_count
+
+        # Merge
+        merge_contacts(primary, secondary)
+
+        # Remove the secondary from the contact list
+        self._contacts.remove(secondary.proxy_npub)
+
+        return LinkResult(
+            primary=primary,
+            absorbed_identifier=secondary.identifier,
+            absorbed_channel=secondary.channel,
+            interaction_count_gained=secondary_count,
+            rationale=(
+                f"Linked {secondary.identifier} ({secondary.channel}) into "
+                f"{primary.identifier} ({primary.channel}). "
+                f"{secondary_count} interactions carried over."
+            ),
+        )
+
+    def get_linked_channels(self, identifier: str, channel: str) -> dict[str, str]:
+        """Get all channels linked to a contact.
+
+        Returns a dict mapping channel → identifier for all known channels,
+        including the primary.
+        """
+        contact = self._contacts.get_by_identifier(identifier, channel)
+        if contact is None:
+            return {}
+        result = {contact.channel: contact.identifier}
+        result.update(contact.linked_channels)
+        return result
+
+    def _pick_primary(self, c1: Contact, c2: Contact) -> tuple[Contact, Contact]:
+        """Pick which contact should be primary in a link operation."""
+        # Higher tier wins (lower index in TIER_ORDER = higher tier)
+        if c1.tier and c2.tier:
+            i1 = TIER_ORDER.index(c1.tier)
+            i2 = TIER_ORDER.index(c2.tier)
+            if i1 < i2:
+                return c1, c2
+            if i2 < i1:
+                return c2, c1
+
+        # Friends over non-friends
+        if c1.list_type == ListType.FRIENDS and c2.list_type != ListType.FRIENDS:
+            return c1, c2
+        if c2.list_type == ListType.FRIENDS and c1.list_type != ListType.FRIENDS:
+            return c2, c1
+
+        # More interactions wins
+        if c1.interaction_count > c2.interaction_count:
+            return c1, c2
+        if c2.interaction_count > c1.interaction_count:
+            return c2, c1
+
+        # Earlier relationship wins
+        if c1.added_at <= c2.added_at:
+            return c1, c2
+        return c2, c1
 
     def promote(self, identifier: str, channel: str, new_tier: Tier) -> Contact:
         """Move a contact to a higher trust tier in the friends list."""

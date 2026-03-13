@@ -24,6 +24,7 @@ from .contacts import ContactList
 from .enclave import SocialEnclave
 from .evaluate import Action, ConversationSignals, Evaluation, evaluate
 from .proxy import derive_proxy_npub
+from .resonance import LinkResult, Recognition
 from .storage import FileStorage, MemoryStorage
 from .verify import Challenge
 
@@ -58,6 +59,9 @@ __all__ = [
     # Storage
     "FileStorage",
     "MemoryStorage",
+    # Resonance
+    "LinkResult",
+    "Recognition",
     # Functions
     "derive_proxy_npub",
     "evaluate",

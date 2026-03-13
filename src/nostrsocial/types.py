@@ -81,6 +81,7 @@ class Contact:
     interaction_count: int = 0
     notes: Optional[str] = None
     upgrade_hint: str = ""
+    linked_channels: dict[str, str] = field(default_factory=dict)  # channel → identifier
 
     @property
     def days_since_interaction(self) -> float:
@@ -106,6 +107,7 @@ class Contact:
             "interaction_count": self.interaction_count,
             "notes": self.notes,
             "upgrade_hint": self.upgrade_hint,
+            "linked_channels": self.linked_channels,
         }
 
     @classmethod
@@ -125,6 +127,7 @@ class Contact:
             interaction_count=data.get("interaction_count", 0),
             notes=data.get("notes"),
             upgrade_hint=data.get("upgrade_hint", ""),
+            linked_channels=data.get("linked_channels", {}),
         )
 
 
