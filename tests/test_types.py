@@ -4,11 +4,15 @@ from nostrsocial.types import (
     BehaviorRules,
     CapacityError,
     Contact,
+    DriftEvent,
     IdentityState,
     ListType,
+    NetworkShape,
     Tier,
-    LIST_CAPACITY,
-    TIER_CAPACITY,
+    TIER_ORDER,
+    DEFAULT_DRIFT_THRESHOLDS,
+    DEFAULT_LIST_CAPACITY,
+    DEFAULT_TIER_CAPACITY,
 )
 
 
@@ -29,21 +33,34 @@ class TestEnums:
         assert IdentityState.CLAIMED.value == "claimed"
         assert IdentityState.VERIFIED.value == "verified"
 
+    def test_tier_order(self):
+        assert TIER_ORDER == [Tier.INTIMATE, Tier.CLOSE, Tier.FAMILIAR, Tier.KNOWN]
+
 
 class TestCapacity:
     def test_tier_capacity_sums_to_friends(self):
-        assert sum(TIER_CAPACITY.values()) == LIST_CAPACITY[ListType.FRIENDS]
+        assert sum(DEFAULT_TIER_CAPACITY.values()) == DEFAULT_LIST_CAPACITY[ListType.FRIENDS]
 
     def test_tier_capacity_values(self):
-        assert TIER_CAPACITY[Tier.INTIMATE] == 5
-        assert TIER_CAPACITY[Tier.CLOSE] == 15
-        assert TIER_CAPACITY[Tier.FAMILIAR] == 50
-        assert TIER_CAPACITY[Tier.KNOWN] == 80
+        assert DEFAULT_TIER_CAPACITY[Tier.INTIMATE] == 5
+        assert DEFAULT_TIER_CAPACITY[Tier.CLOSE] == 15
+        assert DEFAULT_TIER_CAPACITY[Tier.FAMILIAR] == 50
+        assert DEFAULT_TIER_CAPACITY[Tier.KNOWN] == 80
 
     def test_list_capacity_values(self):
-        assert LIST_CAPACITY[ListType.FRIENDS] == 150
-        assert LIST_CAPACITY[ListType.BLOCK] == 50
-        assert LIST_CAPACITY[ListType.GRAY] == 100
+        assert DEFAULT_LIST_CAPACITY[ListType.FRIENDS] == 150
+        assert DEFAULT_LIST_CAPACITY[ListType.BLOCK] == 50
+        assert DEFAULT_LIST_CAPACITY[ListType.GRAY] == 100
+
+
+class TestDriftThresholds:
+    def test_all_tiers_have_thresholds(self):
+        for tier in Tier:
+            assert tier in DEFAULT_DRIFT_THRESHOLDS
+
+    def test_thresholds_increase_with_distance(self):
+        vals = [DEFAULT_DRIFT_THRESHOLDS[t] for t in TIER_ORDER]
+        assert vals == sorted(vals)
 
 
 class TestContact:
@@ -59,6 +76,7 @@ class TestContact:
             display_name="Alice",
             added_at=1000.0,
             last_interaction=2000.0,
+            interaction_count=42,
             notes="Met at conference",
             upgrade_hint="Use create_challenge() to verify ownership",
         )
@@ -75,6 +93,7 @@ class TestContact:
         assert restored.display_name == "Alice"
         assert restored.added_at == 1000.0
         assert restored.last_interaction == 2000.0
+        assert restored.interaction_count == 42
         assert restored.notes == "Met at conference"
 
     def test_defaults(self):
@@ -88,6 +107,7 @@ class TestContact:
         assert contact.proxy_npub == ""
         assert contact.claimed_npub is None
         assert contact.display_name is None
+        assert contact.interaction_count == 0
 
     def test_roundtrip_no_tier(self):
         contact = Contact(
@@ -99,6 +119,29 @@ class TestContact:
         restored = Contact.from_dict(data)
         assert restored.list_type == ListType.BLOCK
         assert restored.tier is None
+
+    def test_days_since_interaction(self):
+        import time
+        contact = Contact(
+            identifier="test@example.com",
+            channel="email",
+            list_type=ListType.FRIENDS,
+            last_interaction=time.time() - 86400,  # 1 day ago
+        )
+        days = contact.days_since_interaction
+        assert 0.9 < days < 1.1
+
+    def test_interaction_count_roundtrip(self):
+        contact = Contact(
+            identifier="test@example.com",
+            channel="email",
+            list_type=ListType.FRIENDS,
+            interaction_count=99,
+        )
+        data = contact.to_dict()
+        assert data["interaction_count"] == 99
+        restored = Contact.from_dict(data)
+        assert restored.interaction_count == 99
 
 
 class TestBehaviorRules:
@@ -113,6 +156,61 @@ class TestBehaviorRules:
         data = rules.to_dict()
         assert data["token_budget"] == 2000
         assert data["warmth"] == 0.95
+
+
+class TestDriftEvent:
+    def test_summary(self):
+        contact = Contact(
+            identifier="alice@example.com",
+            channel="email",
+            list_type=ListType.FRIENDS,
+            display_name="Alice",
+        )
+        event = DriftEvent(
+            contact=contact,
+            from_tier=Tier.CLOSE,
+            to_tier=Tier.FAMILIAR,
+            to_list=ListType.FRIENDS,
+            days_silent=45.3,
+        )
+        assert "Alice" in event.summary
+        assert "close" in event.summary
+        assert "familiar" in event.summary
+        assert "45d" in event.summary
+
+    def test_summary_to_gray(self):
+        contact = Contact(
+            identifier="bob@example.com",
+            channel="email",
+            list_type=ListType.GRAY,
+            display_name="Bob",
+        )
+        event = DriftEvent(
+            contact=contact,
+            from_tier=Tier.KNOWN,
+            to_tier=None,
+            to_list=ListType.GRAY,
+            days_silent=200.0,
+        )
+        assert "gray" in event.summary
+
+
+class TestNetworkShape:
+    def test_dataclass(self):
+        shape = NetworkShape(
+            total_contacts=10,
+            friends_count=7,
+            block_count=2,
+            gray_count=1,
+            tier_counts={"intimate": 2, "close": 3, "familiar": 1, "known": 1},
+            tier_capacities={"intimate": 5, "close": 15, "familiar": 50, "known": 80},
+            verified_count=3,
+            avg_interaction_days=5.2,
+            profile_type="deep-connector",
+            narrative="test",
+        )
+        assert shape.profile_type == "deep-connector"
+        assert shape.total_contacts == 10
 
 
 class TestCapacityError:

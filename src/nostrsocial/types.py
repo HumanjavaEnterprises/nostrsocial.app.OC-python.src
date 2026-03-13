@@ -10,10 +10,14 @@ from typing import Optional
 class Tier(Enum):
     """Trust tier within the friends list (Dunbar-inspired)."""
 
-    INTIMATE = "intimate"  # 5 slots
-    CLOSE = "close"  # 15 slots
-    FAMILIAR = "familiar"  # 50 slots
-    KNOWN = "known"  # 80 slots
+    INTIMATE = "intimate"
+    CLOSE = "close"
+    FAMILIAR = "familiar"
+    KNOWN = "known"
+
+
+# Ordered list for drift: intimate → close → familiar → known
+TIER_ORDER: list[Tier] = [Tier.INTIMATE, Tier.CLOSE, Tier.FAMILIAR, Tier.KNOWN]
 
 
 class ListType(Enum):
@@ -32,19 +36,31 @@ class IdentityState(Enum):
     VERIFIED = "verified"  # Signed challenge confirms ownership
 
 
-# Slot limits per tier within the friends list
-TIER_CAPACITY: dict[Tier, int] = {
+# Default slot limits per tier within the friends list
+DEFAULT_TIER_CAPACITY: dict[Tier, int] = {
     Tier.INTIMATE: 5,
     Tier.CLOSE: 15,
     Tier.FAMILIAR: 50,
     Tier.KNOWN: 80,
 }
 
-# Total capacity per list
-LIST_CAPACITY: dict[ListType, int] = {
+# Default total capacity per list
+DEFAULT_LIST_CAPACITY: dict[ListType, int] = {
     ListType.FRIENDS: 150,
     ListType.BLOCK: 50,
     ListType.GRAY: 100,
+}
+
+# Backwards compat aliases
+TIER_CAPACITY = DEFAULT_TIER_CAPACITY
+LIST_CAPACITY = DEFAULT_LIST_CAPACITY
+
+# Default drift thresholds: days of silence before demotion
+DEFAULT_DRIFT_THRESHOLDS: dict[Tier, float] = {
+    Tier.INTIMATE: 30 * 86400,   # 30 days → demote to close
+    Tier.CLOSE: 60 * 86400,      # 60 days → demote to familiar
+    Tier.FAMILIAR: 90 * 86400,   # 90 days → demote to known
+    Tier.KNOWN: 180 * 86400,     # 180 days → move to gray
 }
 
 
@@ -62,8 +78,17 @@ class Contact:
     display_name: Optional[str] = None
     added_at: float = 0.0
     last_interaction: float = 0.0
+    interaction_count: int = 0
     notes: Optional[str] = None
     upgrade_hint: str = ""
+
+    @property
+    def days_since_interaction(self) -> float:
+        """Days since last interaction. Returns 0 if never interacted."""
+        import time
+        if self.last_interaction <= 0:
+            return 0.0
+        return (time.time() - self.last_interaction) / 86400
 
     def to_dict(self) -> dict:
         """Serialize to a plain dict."""
@@ -78,6 +103,7 @@ class Contact:
             "display_name": self.display_name,
             "added_at": self.added_at,
             "last_interaction": self.last_interaction,
+            "interaction_count": self.interaction_count,
             "notes": self.notes,
             "upgrade_hint": self.upgrade_hint,
         }
@@ -96,6 +122,7 @@ class Contact:
             display_name=data.get("display_name"),
             added_at=data.get("added_at", 0.0),
             last_interaction=data.get("last_interaction", 0.0),
+            interaction_count=data.get("interaction_count", 0),
             notes=data.get("notes"),
             upgrade_hint=data.get("upgrade_hint", ""),
         )
@@ -124,6 +151,43 @@ class BehaviorRules:
             "share_context": self.share_context,
             "proactive_contact": self.proactive_contact,
         }
+
+
+@dataclass
+class DriftEvent:
+    """Record of a contact drifting to a lower tier."""
+
+    contact: Contact
+    from_tier: Optional[Tier]
+    to_tier: Optional[Tier]
+    to_list: ListType
+    days_silent: float
+
+    @property
+    def summary(self) -> str:
+        from_label = self.from_tier.value if self.from_tier else "friends"
+        if self.to_list == ListType.GRAY:
+            to_label = "gray"
+        else:
+            to_label = self.to_tier.value if self.to_tier else "unknown"
+        name = self.contact.display_name or self.contact.identifier
+        return f"{name}: {from_label} → {to_label} ({int(self.days_silent)}d silent)"
+
+
+@dataclass
+class NetworkShape:
+    """Profile of an agent's social network."""
+
+    total_contacts: int
+    friends_count: int
+    block_count: int
+    gray_count: int
+    tier_counts: dict[str, int]
+    tier_capacities: dict[str, int]
+    verified_count: int
+    avg_interaction_days: float
+    profile_type: str
+    narrative: str
 
 
 class CapacityError(Exception):

@@ -10,20 +10,35 @@ from .proxy import derive_proxy_npub
 from .types import (
     CapacityError,
     Contact,
+    DriftEvent,
     IdentityState,
     ListType,
     Tier,
-    LIST_CAPACITY,
-    TIER_CAPACITY,
+    TIER_ORDER,
+    DEFAULT_DRIFT_THRESHOLDS,
+    DEFAULT_LIST_CAPACITY,
+    DEFAULT_TIER_CAPACITY,
 )
 
 
 class ContactList:
     """Manages contacts across friends, block, and gray lists with capacity enforcement."""
 
-    def __init__(self, device_secret: bytes) -> None:
+    def __init__(
+        self,
+        device_secret: bytes,
+        tier_capacity: Optional[dict[Tier, int]] = None,
+        list_capacity: Optional[dict[ListType, int]] = None,
+        drift_thresholds: Optional[dict[Tier, float]] = None,
+    ) -> None:
         self._contacts: dict[str, Contact] = {}
         self._device_secret = device_secret
+        self._tier_capacity = tier_capacity or dict(DEFAULT_TIER_CAPACITY)
+        self._list_capacity = list_capacity or dict(DEFAULT_LIST_CAPACITY)
+        self._drift_thresholds = drift_thresholds or dict(DEFAULT_DRIFT_THRESHOLDS)
+        # Recalculate friends capacity from tier sum if tiers were customized
+        if tier_capacity is not None and list_capacity is None:
+            self._list_capacity[ListType.FRIENDS] = sum(self._tier_capacity.values())
 
     def add(
         self,
@@ -46,9 +61,9 @@ class ContactList:
         current_list_count = sum(
             1 for c in self._contacts.values() if c.list_type == list_type
         )
-        if current_list_count >= LIST_CAPACITY[list_type]:
+        if current_list_count >= self._list_capacity[list_type]:
             raise CapacityError(
-                f"{list_type.value} list is at capacity ({LIST_CAPACITY[list_type]})"
+                f"{list_type.value} list is at capacity ({self._list_capacity[list_type]})"
             )
 
         # Check tier capacity for friends
@@ -57,9 +72,9 @@ class ContactList:
                 1 for c in self._contacts.values()
                 if c.list_type == ListType.FRIENDS and c.tier == tier
             )
-            if current_tier_count >= TIER_CAPACITY[tier]:
+            if current_tier_count >= self._tier_capacity[tier]:
                 raise CapacityError(
-                    f"{tier.value} tier is at capacity ({TIER_CAPACITY[tier]})"
+                    f"{tier.value} tier is at capacity ({self._tier_capacity[tier]})"
                 )
 
         proxy_npub = derive_proxy_npub(identifier, channel, self._device_secret)
@@ -77,11 +92,26 @@ class ContactList:
             display_name=display_name,
             added_at=now,
             last_interaction=now,
+            interaction_count=0,
             notes=notes,
         )
         contact.upgrade_hint = compute_upgrade_hint(contact)
         self._contacts[proxy_npub] = contact
         return contact
+
+    def touch(self, proxy_npub: str) -> Optional[Contact]:
+        """Record an interaction with a contact. Updates timestamp and count."""
+        contact = self._contacts.get(proxy_npub)
+        if contact is None:
+            return None
+        contact.last_interaction = time.time()
+        contact.interaction_count += 1
+        return contact
+
+    def touch_by_identifier(self, identifier: str, channel: str) -> Optional[Contact]:
+        """Record an interaction by identifier."""
+        proxy_npub = derive_proxy_npub(identifier, channel, self._device_secret)
+        return self.touch(proxy_npub)
 
     def remove(self, proxy_npub: str) -> bool:
         """Remove a contact by proxy npub. Returns True if found."""
@@ -122,9 +152,9 @@ class ContactList:
             1 for k, c in self._contacts.items()
             if c.list_type == new_list and k != proxy_npub
         )
-        if current_list_count >= LIST_CAPACITY[new_list]:
+        if current_list_count >= self._list_capacity[new_list]:
             raise CapacityError(
-                f"{new_list.value} list is at capacity ({LIST_CAPACITY[new_list]})"
+                f"{new_list.value} list is at capacity ({self._list_capacity[new_list]})"
             )
 
         if new_tier is not None:
@@ -132,15 +162,69 @@ class ContactList:
                 1 for k, c in self._contacts.items()
                 if c.list_type == ListType.FRIENDS and c.tier == new_tier and k != proxy_npub
             )
-            if current_tier_count >= TIER_CAPACITY[new_tier]:
+            if current_tier_count >= self._tier_capacity[new_tier]:
                 raise CapacityError(
-                    f"{new_tier.value} tier is at capacity ({TIER_CAPACITY[new_tier]})"
+                    f"{new_tier.value} tier is at capacity ({self._tier_capacity[new_tier]})"
                 )
 
         contact.list_type = new_list
         contact.tier = new_tier if new_list == ListType.FRIENDS else None
         contact.upgrade_hint = compute_upgrade_hint(contact)
         return contact
+
+    def drift(self) -> list[DriftEvent]:
+        """Demote friends who haven't interacted recently. Returns drift events.
+
+        Drift is gravity — trust cools without effort.
+        Intimate → Close → Familiar → Known → Gray.
+        Block list never drifts. Gray decays separately.
+        """
+        now = time.time()
+        events: list[DriftEvent] = []
+
+        for contact in list(self._contacts.values()):
+            if contact.list_type != ListType.FRIENDS or contact.tier is None:
+                continue
+
+            silence = now - contact.last_interaction
+            threshold = self._drift_thresholds.get(contact.tier)
+            if threshold is None or silence < threshold:
+                continue
+
+            from_tier = contact.tier
+            tier_idx = TIER_ORDER.index(contact.tier)
+
+            if tier_idx >= len(TIER_ORDER) - 1:
+                # Known → Gray (falls off friends list)
+                # Check gray capacity first
+                gray_count = sum(
+                    1 for c in self._contacts.values() if c.list_type == ListType.GRAY
+                )
+                if gray_count < self._list_capacity[ListType.GRAY]:
+                    contact.list_type = ListType.GRAY
+                    contact.tier = None
+                    events.append(DriftEvent(
+                        contact=contact,
+                        from_tier=from_tier,
+                        to_tier=None,
+                        to_list=ListType.GRAY,
+                        days_silent=silence / 86400,
+                    ))
+            else:
+                # Demote one tier
+                new_tier = TIER_ORDER[tier_idx + 1]
+                contact.tier = new_tier
+                events.append(DriftEvent(
+                    contact=contact,
+                    from_tier=from_tier,
+                    to_tier=new_tier,
+                    to_list=ListType.FRIENDS,
+                    days_silent=silence / 86400,
+                ))
+
+            contact.upgrade_hint = compute_upgrade_hint(contact)
+
+        return events
 
     def list_friends(self, tier: Optional[Tier] = None) -> list[Contact]:
         """List friends, optionally filtered by tier."""
@@ -157,10 +241,29 @@ class ContactList:
         """List all gray-zone contacts."""
         return [c for c in self._contacts.values() if c.list_type == ListType.GRAY]
 
+    def list_drifting(self, threshold_pct: float = 0.5) -> list[Contact]:
+        """List friends approaching their drift threshold.
+
+        Returns contacts who have been silent for more than threshold_pct
+        of their tier's drift window. These are at risk of demotion.
+        """
+        now = time.time()
+        at_risk = []
+        for contact in self._contacts.values():
+            if contact.list_type != ListType.FRIENDS or contact.tier is None:
+                continue
+            threshold = self._drift_thresholds.get(contact.tier, 0)
+            if threshold <= 0:
+                continue
+            silence = now - contact.last_interaction
+            if silence > threshold * threshold_pct:
+                at_risk.append(contact)
+        return sorted(at_risk, key=lambda c: c.last_interaction)
+
     def slots_remaining(self, list_type: ListType) -> int:
         """How many slots remain in a list."""
         current = sum(1 for c in self._contacts.values() if c.list_type == list_type)
-        return LIST_CAPACITY[list_type] - current
+        return self._list_capacity[list_type] - current
 
     def tier_slots_remaining(self, tier: Tier) -> int:
         """How many slots remain in a tier."""
@@ -168,7 +271,7 @@ class ContactList:
             1 for c in self._contacts.values()
             if c.list_type == ListType.FRIENDS and c.tier == tier
         )
-        return TIER_CAPACITY[tier] - current
+        return self._tier_capacity[tier] - current
 
     def get_unverified(self) -> list[Contact]:
         """Get all contacts that are not yet verified."""
@@ -204,10 +307,33 @@ class ContactList:
         """Serialize all contacts."""
         return [c.to_dict() for c in self._contacts.values()]
 
+    def capacity_config(self) -> dict:
+        """Return current capacity configuration for serialization."""
+        return {
+            "tier_capacity": {t.value: v for t, v in self._tier_capacity.items()},
+            "list_capacity": {lt.value: v for lt, v in self._list_capacity.items()},
+            "drift_thresholds": {t.value: v for t, v in self._drift_thresholds.items()},
+        }
+
     @classmethod
-    def from_dict(cls, data: list[dict], device_secret: bytes) -> ContactList:
+    def from_dict(
+        cls,
+        data: list[dict],
+        device_secret: bytes,
+        capacity_config: Optional[dict] = None,
+    ) -> ContactList:
         """Deserialize contacts."""
-        cl = cls(device_secret)
+        tier_cap = None
+        list_cap = None
+        drift_thresh = None
+        if capacity_config:
+            if "tier_capacity" in capacity_config:
+                tier_cap = {Tier(k): v for k, v in capacity_config["tier_capacity"].items()}
+            if "list_capacity" in capacity_config:
+                list_cap = {ListType(k): v for k, v in capacity_config["list_capacity"].items()}
+            if "drift_thresholds" in capacity_config:
+                drift_thresh = {Tier(k): v for k, v in capacity_config["drift_thresholds"].items()}
+        cl = cls(device_secret, tier_cap, list_cap, drift_thresh)
         for item in data:
             contact = Contact.from_dict(item)
             cl._contacts[contact.proxy_npub] = contact
