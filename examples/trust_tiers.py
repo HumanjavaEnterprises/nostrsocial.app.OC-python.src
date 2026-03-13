@@ -1,6 +1,6 @@
 """Explore trust tier behavioral rules."""
 
-from nostrsocial import Tier
+from nostrsocial import Tier, DEFAULT_TIER_CAPACITY
 from nostrsocial.behavior import TIER_BEHAVIORS, BLOCK_BEHAVIOR, GRAY_BEHAVIOR, NEUTRAL_BEHAVIOR
 
 
@@ -10,7 +10,7 @@ def main():
 
     for tier in Tier:
         rules = TIER_BEHAVIORS[tier]
-        print(f"\n{tier.value.upper()} (capacity: {tier.name})")
+        print(f"\n{tier.value.upper()} (capacity: {DEFAULT_TIER_CAPACITY[tier]})")
         print(f"  Token budget:    {rules.token_budget}")
         print(f"  Memory depth:    {rules.memory_depth}")
         print(f"  Warmth:          {rules.warmth}")

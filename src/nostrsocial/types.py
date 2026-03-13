@@ -84,6 +84,15 @@ class Contact:
     upgrade_hint: str = ""
     linked_channels: dict[str, str] = field(default_factory=dict)  # channel → identifier
 
+    def __repr__(self) -> str:
+        """Safe repr that doesn't expose PII (identifiers, notes, npubs)."""
+        tier_label = self.tier.value if self.tier else "none"
+        return (
+            f"Contact(channel={self.channel!r}, list={self.list_type.value}, "
+            f"tier={tier_label}, state={self.identity_state.value}, "
+            f"interactions={self.interaction_count})"
+        )
+
     @property
     def days_since_interaction(self) -> float:
         """Days since last interaction. Returns 0 if never interacted."""
