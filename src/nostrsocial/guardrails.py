@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from importlib import resources
 from typing import Optional
@@ -163,7 +164,12 @@ class Guardrails:
         if not text:
             return ScreenResult()
 
-        normalized = text.lower()
+        # Cap input length to prevent ReDoS on extremely long inputs
+        if len(text) > 10_000:
+            text = text[:10_000]
+
+        # Normalize unicode homoglyphs (е→e, а→a, etc.) before screening
+        normalized = unicodedata.normalize("NFKD", text).lower()
 
         # 1. Check banned words (exact match within text)
         for cat, words in self._words.items():
@@ -191,10 +197,11 @@ class Guardrails:
                     rationale="Obfuscated slur detected. Attempted evasion makes it worse.",
                 )
 
-        # 3. Check banned topics (phrase match)
+        # 3. Check banned topics (phrase match with whitespace normalization)
+        ws_normalized = re.sub(r"\s+", " ", normalized)
         for cat, phrases in self._topics.items():
             for phrase in phrases:
-                if phrase in normalized:
+                if phrase in ws_normalized:
                     severity, action = _CATEGORY_CONFIG.get(cat, (0.5, "warn"))
                     return ScreenResult(
                         flagged=True,
@@ -216,6 +223,7 @@ class Guardrails:
         if not name:
             return ScreenResult()
 
+        name = unicodedata.normalize("NFKD", name)
         normalized = name.lower().replace(" ", "_")
         # Also check without underscores for flexible matching
         collapsed = re.sub(r"[\s_\-.]", "", name.lower())

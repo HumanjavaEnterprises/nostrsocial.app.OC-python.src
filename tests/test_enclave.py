@@ -590,3 +590,56 @@ class TestMaintainDryRun:
         e.add("alice@example.com", "email", Tier.CLOSE)
         result = e.maintain(dry_run=True)
         assert "Nothing would change" in result["summary"]
+
+
+class TestSignalHistoryPipeline:
+    """Signal history survives the full save/load pipeline through enclave."""
+
+    def test_signal_history_survives_save_load(self):
+        storage = MemoryStorage()
+        e = SocialEnclave.create(storage)
+        e.add("alice@example.com", "email", Tier.CLOSE, display_name="Alice")
+
+        e.evaluate("alice@example.com", "email", ConversationSignals(hostility=0.3))
+        e.evaluate("alice@example.com", "email", ConversationSignals(hostility=0.7))
+        e.save()
+
+        e2 = SocialEnclave.load(storage)
+        c = e2._contacts.get_by_identifier("alice@example.com", "email")
+        assert len(c.signal_history) == 2
+        assert c.recent_pattern("hostility") == [0.3, 0.7]
+
+
+class TestPIISafety:
+    """Ensure PII is never leaked in reasons, rationales, or summaries."""
+
+    def test_recognition_reason_no_npub(self):
+        """Recognition reason should not contain the raw npub."""
+        e = SocialEnclave.create()
+        npub = "npub1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq2edeat"
+        e.add("alice@example.com", "email", Tier.CLOSE, claimed_npub=npub)
+
+        matches = e.recognize("@alice", "twitter", claimed_npub=npub)
+        assert len(matches) >= 1
+        # The reason should NOT contain the raw npub
+        assert npub not in matches[0].reason
+        assert "npub1" not in matches[0].reason
+
+    def test_recognition_reason_no_display_name_leak(self):
+        e = SocialEnclave.create()
+        e.add("alice@example.com", "email", Tier.CLOSE, display_name="Alice Secret Name")
+
+        matches = e.recognize("@alice", "twitter", display_name="Alice Secret Name")
+        assert len(matches) >= 1
+        assert "Alice Secret Name" not in matches[0].reason
+
+    def test_link_rationale_no_identifiers(self):
+        """Link rationale should not expose raw identifiers."""
+        e = SocialEnclave.create()
+        e.add("alice@secret-email.com", "email", Tier.CLOSE)
+        e.add("@alicedev", "twitter", Tier.FAMILIAR)
+
+        result = e.link("alice@secret-email.com", "email", "@alicedev", "twitter")
+        # Should not contain raw email or twitter handle
+        assert "alice@secret-email.com" not in result.rationale
+        assert "@alicedev" not in result.rationale

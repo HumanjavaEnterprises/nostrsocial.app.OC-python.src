@@ -123,8 +123,8 @@ class Contact:
 
     @property
     def days_since_interaction(self) -> float:
-        """Days since last interaction. Returns 0 if never interacted."""
-        import time
+        """Days since last interaction. Returns 0 if last_interaction was never set."""
+        import time  # deferred to keep types.py import-light
         if self.last_interaction <= 0:
             return 0.0
         return (time.time() - self.last_interaction) / 86400

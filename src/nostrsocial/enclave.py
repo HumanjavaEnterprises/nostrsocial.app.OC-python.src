@@ -271,8 +271,7 @@ class SocialEnclave:
             absorbed_channel=secondary.channel,
             interaction_count_gained=secondary_count,
             rationale=(
-                f"Linked {secondary.identifier} ({secondary.channel}) into "
-                f"{primary.identifier} ({primary.channel}). "
+                f"Linked [{secondary.channel}] into [{primary.channel}]. "
                 f"{secondary_count} interactions carried over."
             ),
         )
@@ -366,8 +365,8 @@ class SocialEnclave:
         tier wasn't full. The displaced contact moves down one tier — intimate→close,
         close→familiar, familiar→known. Known contacts move to gray.
 
-        This is the answer to Kimi's "6th intimate" problem: scarcity is real,
-        but displacement is explicit, not silent.
+        Uses ContactList.move() internally so capacity checks and upgrade_hint
+        updates are applied. Raises CapacityError if the destination is also full.
         """
         candidate = self._contacts.displacement_candidate(tier)
         if candidate is None:
@@ -376,11 +375,10 @@ class SocialEnclave:
         tier_idx = TIER_ORDER.index(tier)
         if tier_idx >= len(TIER_ORDER) - 1:
             # Known → gray
-            candidate.list_type = ListType.GRAY
-            candidate.tier = None
+            return self._contacts.move(candidate.proxy_npub, ListType.GRAY)
         else:
-            candidate.tier = TIER_ORDER[tier_idx + 1]
-        return candidate
+            new_tier = TIER_ORDER[tier_idx + 1]
+            return self._contacts.move(candidate.proxy_npub, ListType.FRIENDS, new_tier)
 
     def get_behavior(self, identifier: str, channel: str) -> BehaviorRules:
         """Get behavioral rules for a contact. Returns NEUTRAL for unknowns."""

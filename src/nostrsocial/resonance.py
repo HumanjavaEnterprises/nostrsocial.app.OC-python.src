@@ -84,7 +84,7 @@ def find_recognitions(
                 new_identifier=identifier,
                 new_channel=channel,
                 confidence=0.95,
-                reason=f"Same npub claimed: {claimed_npub[:20]}...",
+                reason="Same npub claimed across channels",
                 suggestion=(
                     "High confidence match. Consider linking these identities. "
                     "They share the same npub — this is almost certainly the same person."
@@ -104,7 +104,7 @@ def find_recognitions(
                 new_identifier=identifier,
                 new_channel=channel,
                 confidence=0.3,
-                reason=f"Same display name '{display_name}' on {contact.channel} and {channel}",
+                reason="Same display name on different channels",
                 suggestion=(
                     "Possible match based on display name alone. "
                     "Ask them to confirm — 'Are you the same {name} I know from {channel}?' "
