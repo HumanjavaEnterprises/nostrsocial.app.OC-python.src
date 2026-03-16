@@ -97,6 +97,8 @@ enclave = SocialEnclave.load(storage)
 
 ## Important Notes
 
+- **The device secret is the root of all proxy npub derivation.** Call `export_secret()` after `create()` and store it securely. If you lose it, all proxy npubs become unrecoverable.
+- **Never hardcode an nsec in your code.** If your agent has a Nostr identity, load it from an environment variable or encrypted file. The `nostrkey` package provides `Identity.load()` for this.
 - Friends list is capped at 150 (Dunbar's number): 5 intimate + 15 close + 50 familiar + 80 known
 - Block list holds 50. Gray list holds 100 with auto-decay.
 - Proxy npubs are deterministic — same identifier always maps to same npub
