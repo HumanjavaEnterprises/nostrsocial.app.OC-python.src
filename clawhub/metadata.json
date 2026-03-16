@@ -1,7 +1,7 @@
 {
   "slug": "nostrsocial",
   "name": "NostrSocial",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "summary": "Social graph manager — contacts, trust tiers, and identity verification over Nostr",
   "author": {
     "name": "Humanjava Enterprises",

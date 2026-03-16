@@ -1,7 +1,7 @@
 ---
 name: nostrsocial
 description: Social graph manager — contacts, trust tiers, and identity verification over Nostr
-version: 0.1.0
+version: 0.1.1
 metadata:
   openclaw:
     requires:
