@@ -95,6 +95,67 @@ enclave = SocialEnclave.load(storage)
 | Decay stale contacts | `enclave` | `decay` |
 | Persist social graph | `enclave` | `save` / `load` |
 
+## Response Format
+
+### Contact (returned by `add()`, `promote()`, `demote()`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `identifier` | `str` | Email, phone, npub, etc. |
+| `channel` | `str` | "email", "phone", "npub", "twitter" |
+| `list_type` | `ListType` | FRIENDS, BLOCK, or GRAY |
+| `tier` | `Tier \| None` | INTIMATE, CLOSE, FAMILIAR, or KNOWN (friends only) |
+| `identity_state` | `IdentityState` | PROXY, CLAIMED, or VERIFIED |
+| `proxy_npub` | `str` | HMAC-derived npub for non-npub contacts |
+| `display_name` | `str \| None` | Human-readable name |
+| `interaction_count` | `int` | Total interactions recorded |
+| `upgrade_hint` | `str` | Hint for identity verification |
+
+### BehaviorRules (returned by `get_behavior()`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `token_budget` | `int` | Token allowance (intimate=2000, known=750, block=0) |
+| `memory_depth` | `int` | Past interactions to consider |
+| `can_interrupt` | `bool` | Can interrupt ongoing tasks |
+| `warmth` | `float` | 0.0–1.0 (intimate=0.95, known=0.5, block=0.0) |
+| `response_priority` | `int` | 1=highest (intimate), 10=block |
+| `share_context` | `bool` | Share agent context with this contact |
+| `proactive_contact` | `bool` | Agent initiates contact |
+
+### Evaluation (returned by `evaluate()`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `action` | `Action` | HOLD, PROMOTE, DEMOTE, WATCH, BLOCK, or REACH_OUT |
+| `confidence` | `float` | 0.0–1.0 |
+| `adjusted_warmth` | `float` | Warmth for this specific moment |
+| `adjusted_token_budget` | `int` | Token budget for this response |
+| `approach` | `str` | "lean in", "de-escalate", "match energy", etc. |
+| `rationale` | `str` | Why this recommendation |
+| `tier_suggestion` | `Tier \| None` | Suggested tier if promote/demote |
+
+### ScreenResult (returned by `screen()`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `flagged` | `bool` | Whether content was flagged |
+| `severity` | `float` | 0.0–1.0 |
+| `category` | `str` | "slurs", "hate_symbols", "manipulation", etc. |
+| `matched` | `str` | Category tag like `[slurs]` (never raw input — PII safe) |
+| `action` | `str` | "block", "exit", "warn", or "demote" |
+| `rationale` | `str` | Human-readable explanation |
+
+### NetworkShape (returned by `network_shape()`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `total_contacts` | `int` | Total across all lists |
+| `tier_counts` | `dict[str, int]` | Per-tier counts |
+| `verified_count` | `int` | Verified identities |
+| `profile_type` | `str` | "balanced", "fortress", "deep-connector", etc. |
+| `narrative` | `str` | Human-readable network description |
+
 ## Important Notes
 
 - **The device secret is the root of all proxy npub derivation.** Call `export_secret()` after `create()` and store it securely. If you lose it, all proxy npubs become unrecoverable.
