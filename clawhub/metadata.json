@@ -1,8 +1,8 @@
 {
   "slug": "nostrsocial",
   "name": "NostrSocial",
-  "version": "0.1.1",
-  "summary": "Social graph manager — contacts, trust tiers, and identity verification over Nostr",
+  "version": "0.1.2",
+  "summary": "Social awareness for AI entities — contacts, trust tiers, and identity verification over Nostr",
   "author": {
     "name": "Humanjava Enterprises",
     "url": "https://loginwithnostr.com/openclaw"
@@ -26,11 +26,31 @@
     "python": ">=3.10"
   },
   "dependencies": [
-    "nostrkey"
+    "nostrkey>=0.1.0"
   ],
   "categories": [
     "social",
     "communication",
     "identity"
+  ],
+  "env": [
+    {
+      "name": "NOSTR_NSEC",
+      "description": "Nostr private key (nsec) for the entity's identity. Load via NostrKey — never hardcode.",
+      "required": false,
+      "sensitive": true
+    },
+    {
+      "name": "NOSTR_RELAY",
+      "description": "Preferred Nostr relay URL for publishing contact events and verification challenges.",
+      "required": false,
+      "sensitive": false
+    },
+    {
+      "name": "NOSTRKEY_PASSPHRASE",
+      "description": "Passphrase for decrypting a NostrKey identity file, if using encrypted storage.",
+      "required": false,
+      "sensitive": true
+    }
   ]
 }

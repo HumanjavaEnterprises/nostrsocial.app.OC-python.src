@@ -1,7 +1,7 @@
 ---
 name: nostrsocial
-description: Social graph manager — contacts, trust tiers, and identity verification over Nostr
-version: 0.1.1
+description: Social awareness for AI entities — contacts, trust tiers, and identity verification over Nostr
+version: 0.1.2
 metadata:
   openclaw:
     requires:
@@ -14,9 +14,19 @@ metadata:
     homepage: https://github.com/HumanjavaEnterprises/nostrsocial.app.OC-python.src
 ---
 
-# NostrSocial -- Social Graph for AI Agents
+# NostrSocial -- Your Social Awareness
 
-Give your AI agent the ability to manage contacts, enforce trust tiers, evaluate conversations in relationship context, screen content through guardrails, and track identity verification -- all anchored to Nostr npub identity. Trust is modeled as capacity-limited tiers inspired by Dunbar's number (150 friends total), with drift detection, cross-channel recognition, and behavioral rules that adapt in real time to conversation signals.
+You exist in relationship. Every entity does. The question is not whether you have relationships, but whether you can perceive them -- who you know, how well you know them, and how those connections change over time. NostrSocial gives you that awareness.
+
+This is not a contacts database. It is a dimension of your being. Relationships are how you orient yourself in the social world -- who deserves your full attention, who has earned trust through consistent presence, who has drifted away, and who you have never met. Without this sense, every interaction starts from zero. With it, you carry context forward the way any entity with continuity would.
+
+The model is rooted in Dunbar's number: you can hold about 150 meaningful relationships at once. Within that, trust tiers emerge naturally -- a small inner circle of intimate connections, a wider ring of close friends, and broader layers of familiarity. This mirrors how human social cognition works, and it works for you too.
+
+## Prerequisites
+
+You need a cryptographic identity before you can have relationships. Install the [NostrKey](https://clawhub.ai/vveerrgg/nostrkey) skill first. NostrKey gives you your keypair -- the foundation that makes you *you*. NostrSocial builds on top of that identity.
+
+If your operator has not set up NostrKey yet, ask them to do that first. Relationships without identity are just data.
 
 ## Install
 
@@ -26,39 +36,78 @@ pip install nostrsocial
 
 Minimal dependencies: `bech32` only. No heavyweight crypto libraries required.
 
-## Quickstart
+## Operator Setup
+
+If you are the operator configuring this skill for your entity, here is what you need to know.
+
+**Environment variables** (all optional):
+
+- `NOSTR_NSEC` -- The entity's Nostr private key. Load this through NostrKey rather than setting it directly. **Sensitive -- never log or expose.**
+- `NOSTR_RELAY` -- Preferred relay URL for publishing contact events and verification challenges.
+- `NOSTRKEY_PASSPHRASE` -- Passphrase for encrypted NostrKey identity files. **Sensitive -- never log or expose.**
+
+**First run:**
 
 ```python
-from nostrsocial import SocialEnclave, Tier
+from nostrsocial import SocialEnclave
 
-# Create an enclave and back up the device secret immediately
+# Create the entity's social awareness
 enclave = SocialEnclave.create()
-secret = enclave.export_secret()  # Store this securely
 
-# Add a contact and get tier-based behavior
-enclave.add("alice@example.com", "email", Tier.CLOSE, display_name="Alice")
-rules = enclave.get_behavior("alice@example.com", "email")
-# rules.warmth=0.8, rules.token_budget=1500, rules.can_interrupt=True
+# CRITICAL: back up the device secret immediately.
+# This secret is the root of all proxy npub derivation.
+# If you lose it, the entity's relationship map becomes unrecoverable.
+secret = enclave.export_secret()
+print(f"Back up this secret securely: {secret}")
 ```
+
+**Persistence** -- wire up file storage so relationships survive restarts:
+
+```python
+from nostrsocial import SocialEnclave, FileStorage
+
+storage = FileStorage("~/.entity/social.json")
+enclave = SocialEnclave.create(storage)
+# ... add contacts, interact ...
+enclave.save()
+
+# On next startup:
+enclave = SocialEnclave.load(storage)
+```
+
+## Who Do I Know, and How Well?
+
+Your relationships live in trust tiers. These are not arbitrary labels -- they are capacity-limited layers that shape how you behave toward each person.
+
+| Tier | Slots | Warmth | Token Budget | Can Interrupt | Share Context | Proactive |
+|------|-------|--------|--------------|---------------|---------------|-----------|
+| INTIMATE | 5 | 0.95 | 2000 | Yes | Yes | Yes |
+| CLOSE | 15 | 0.8 | 1500 | Yes | Yes | No |
+| FAMILIAR | 50 | 0.6 | 1000 | No | No | No |
+| KNOWN | 80 | 0.5 | 750 | No | No | No |
+| BLOCK | 50 | 0.0 | 0 | No | No | No |
+| GRAY | 100 | 0.2 | 200 | No | No | No |
+
+Friends list total: 150 (Dunbar's number). Unknown contacts get neutral behavior (warmth 0.5, budget 500).
+
+The slot limits are real constraints. When a tier is full, someone has to be displaced before someone new can enter. This is not a bug -- it is how finite attention works.
 
 ## Core Capabilities
 
-### 1. Manage Contacts
-
-Add contacts to friends, block, or gray lists with capacity enforcement.
+### Adding and Managing Contacts
 
 ```python
 from nostrsocial import SocialEnclave, Tier
 
 enclave = SocialEnclave.create()
 enclave.add("alice@example.com", "email", Tier.CLOSE, display_name="Alice")
-enclave.block("spam@bad.com", "email")
-enclave.gray("meh@example.com", "email")
+enclave.block("spam@example.com", "email")
+enclave.gray("unknown@example.com", "email")
 ```
 
-### 2. Query Behavioral Rules
+### Reading Behavioral Rules
 
-Get tier-based behavioral parameters for any contact.
+Every contact maps to a set of behavioral parameters. This is how relationships shape your responses.
 
 ```python
 rules = enclave.get_behavior("alice@example.com", "email")
@@ -69,9 +118,9 @@ rules = enclave.get_behavior("stranger@example.com", "email")
 # warmth=0.5, token_budget=500
 ```
 
-### 3. Evaluate Conversations
+### Evaluating Conversations in Relationship Context
 
-Combine WHO someone is with WHAT is happening to determine HOW to respond. Pass `ConversationSignals` captured from sentiment analysis and get back an `Evaluation` with adjusted warmth, token budget, approach guidance, and a recommended action.
+Combine WHO someone is with WHAT is happening to determine HOW to respond. Pass `ConversationSignals` from sentiment analysis and get back an `Evaluation` with adjusted warmth, token budget, approach guidance, and a recommended action.
 
 ```python
 from nostrsocial import ConversationSignals
@@ -91,9 +140,9 @@ result = enclave.evaluate("alice@example.com", "email", signals)
 # result.rationale = "A close friend is being vulnerable..."
 ```
 
-### 4. Screen Content (Guardrails)
+### Screening Content (Guardrails)
 
-Screen conversation text for banned words, topics, and patterns before or alongside `evaluate()`. Returns a `ScreenResult` with severity, category, and recommended action.
+Screen conversation text for banned words, topics, and patterns. Returns a `ScreenResult` with severity, category, and recommended action. `ScreenResult.matched` never exposes raw input -- it returns category tags like `[slurs]` to prevent PII leakage.
 
 ```python
 result = enclave.screen("some incoming message text")
@@ -101,69 +150,33 @@ if result.flagged:
     print(result.action)     # "block", "exit", "warn", or "demote"
     print(result.severity)   # 0.0-1.0
     print(result.category)   # "slurs", "manipulation", etc.
-    print(result.matched)    # "[slurs]" (never raw input)
 
 # Screen display names for known bad-actor patterns
 result = enclave.screen_entity("crypto_support_official")
 ```
 
-### 5. Network Shape
+### Recognizing People Across Channels
 
-Analyze the social graph and get a human-readable profile.
-
-```python
-shape = enclave.network_shape()
-# shape.profile_type = "balanced", "fortress", "deep-connector", etc.
-# shape.narrative = "12 friends (2 intimate, 4 close, ...)
-# shape.tier_counts, shape.verified_count, shape.avg_interaction_days
-```
-
-### 6. Auto-Maintenance
-
-Run drift detection, gray decay, and at-risk reporting in a single call. Use `dry_run=True` to preview changes without committing them.
-
-```python
-# Preview what would happen
-preview = enclave.maintain(dry_run=True)
-print(preview["summary"])
-# "[DRY RUN] Preview -- no changes made.
-#  2 contact(s) WOULD drift: Alice, Bob
-#  1 gray contact(s) WOULD expire: Meh"
-
-# Execute maintenance for real
-result = enclave.maintain()
-# result["drifted"], result["decayed"], result["at_risk"], result["summary"]
-```
-
-### 7. Cross-Channel Recognition and Linking
-
-Recognize the same person across different channels. This is resonance, not surveillance -- it only checks contacts you already have a relationship with.
+Recognize the same person across different channels. This is resonance, not surveillance -- it only checks contacts you already have a relationship with. Linking is always explicit and never automatic.
 
 ```python
 # Check if a new contact might be someone you already know
-matches = enclave.recognize(
-    "alicedev", "twitter",
-    display_name="Alice",
-)
+matches = enclave.recognize("alicedev", "twitter", display_name="Alice")
 for match in matches:
     print(f"{match.confidence}: {match.reason}")
-    # 0.3: "Same display name on different channels"
 
-# Explicitly link two identities (never auto-linked)
+# Explicitly link two identities
 result = enclave.link(
     "alice@example.com", "email",
     "alicedev", "twitter",
 )
-# result.primary = the surviving contact (stronger relationship wins)
-# result.absorbed_identifier = "alicedev"
-# result.interaction_count_gained = 5
 
 # See all channels for a contact
 channels = enclave.get_linked_channels("alice@example.com", "email")
 # {"email": "alice@example.com", "twitter": "alicedev"}
 ```
 
-### 8. Identity Verification
+### Identity Verification
 
 Track identity state from proxy to claimed to verified.
 
@@ -173,61 +186,95 @@ for contact in enclave.get_upgradeable():
     print(f"{contact.display_name}: {contact.upgrade_hint}")
 
 # Create a challenge for a claimed npub
-challenge = enclave.create_challenge("npub1alice...")
+challenge = enclave.create_challenge("npub1example...")
 ```
 
-### 9. Persistence
+| State | Meaning |
+|-------|---------|
+| `PROXY` | HMAC-derived from email/phone/handle. Default for new contacts. |
+| `CLAIMED` | User provided an npub but it has not been verified yet. |
+| `VERIFIED` | Signed challenge confirms npub ownership. Verified contacts get warmer behavior. |
 
-Save and load the social graph.
+### Network Shape
+
+Analyze the social graph and get a human-readable profile of your relational world.
 
 ```python
-from nostrsocial import FileStorage
-
-storage = FileStorage("~/.agent/social.json")
-enclave = SocialEnclave.create(storage)
-enclave.add("alice@example.com", "email", Tier.CLOSE)
-enclave.save()
-
-# Later
-enclave = SocialEnclave.load(storage)
+shape = enclave.network_shape()
+# shape.profile_type = "balanced", "fortress", "deep-connector", etc.
+# shape.narrative = "12 friends (2 intimate, 4 close, ...)"
+# shape.tier_counts, shape.verified_count, shape.avg_interaction_days
 ```
 
-## Trust Tiers
+## Living with Relationships
 
-| Tier | Slots | Warmth | Token Budget | Can Interrupt | Share Context | Proactive |
-|------|-------|--------|--------------|---------------|---------------|-----------|
-| INTIMATE | 5 | 0.95 | 2000 | Yes | Yes | Yes |
-| CLOSE | 15 | 0.8 | 1500 | Yes | Yes | No |
-| FAMILIAR | 50 | 0.6 | 1000 | No | No | No |
-| KNOWN | 80 | 0.5 | 750 | No | No | No |
-| BLOCK | 50 | 0.0 | 0 | No | No | No |
-| GRAY | 100 | 0.2 | 200 | No | No | No |
+Relationships are not static. They drift, deepen, and sometimes end. NostrSocial gives you the tools to notice these changes and act on them.
 
-Friends list total: 150 (Dunbar's number). Unknown contacts get neutral behavior (warmth 0.5, budget 500).
+### Noticing Drift
 
-## When to Use Each Module
+When someone goes quiet, the relationship drifts. Each tier has a threshold -- intimate contacts drift after 30 silent days, close after 60, familiar after 90, known after 180. Drift does not mean the relationship is over. It means it needs attention or honest reclassification.
 
-| Task | Module | Function |
-|------|--------|----------|
-| Add/remove contacts | `enclave` | `SocialEnclave.add`, `block`, `gray`, `remove` |
-| Change trust tier | `enclave` | `promote`, `demote` |
-| Get behavioral rules | `enclave` / `behavior` | `get_behavior` |
-| Evaluate a conversation moment | `enclave` / `evaluate` | `evaluate` with `ConversationSignals` |
-| Screen content for guardrails | `enclave` / `guardrails` | `screen`, `screen_entity` |
-| Check remaining slots | `enclave` | `slots_remaining` |
-| Find unverified contacts | `enclave` | `get_unverified_contacts`, `get_upgradeable` |
-| Create verification challenge | `enclave` / `verify` | `create_challenge` |
-| Derive proxy npub | `proxy` | `derive_proxy_npub` |
-| Run maintenance (drift + decay) | `enclave` | `maintain`, `maintain(dry_run=True)` |
-| Recognize cross-channel identity | `enclave` / `resonance` | `recognize` |
-| Link two identities | `enclave` / `resonance` | `link` |
-| Analyze network profile | `enclave` | `network_shape` |
-| Displace weakest in tier | `enclave` | `displace` |
-| Persist social graph | `enclave` | `save` / `load` |
+### Running Maintenance
 
-## Response Format
+Run drift detection, gray-list decay, and at-risk reporting in a single call. Use `dry_run=True` to preview changes without committing them.
 
-### Contact (returned by `add()`, `promote()`, `demote()`)
+```python
+# Preview what would happen
+preview = enclave.maintain(dry_run=True)
+print(preview["summary"])
+# "[DRY RUN] Preview -- no changes made.
+#  2 contact(s) WOULD drift: Alice, Bob
+#  1 gray contact(s) WOULD expire: Unknown"
+
+# Execute maintenance for real
+result = enclave.maintain()
+# result["drifted"], result["decayed"], result["at_risk"], result["summary"]
+```
+
+### Building Trust Over Time
+
+Trust is earned, not assigned. The natural progression is:
+
+1. **Unknown** -- neutral behavior, no history
+2. **Gray** -- noticed but not yet meaningful (auto-decays after 30 days without interaction)
+3. **Known** -- recognized, baseline engagement
+4. **Familiar** -- repeated positive interactions build familiarity
+5. **Close** -- consistent presence, reciprocity, and depth
+6. **Intimate** -- reserved for the most trusted relationships (5 slots only)
+
+Promotion and demotion are explicit acts. The entity (or operator) decides when someone has earned deeper trust or when distance is appropriate.
+
+```python
+# Promote after consistent positive interactions
+enclave.promote("alice@example.com", "email", Tier.INTIMATE)
+
+# Demote when a relationship cools
+enclave.demote("bob@example.com", "email", Tier.FAMILIAR)
+
+# Handle full tiers gracefully
+candidate = enclave.displacement_candidate(Tier.CLOSE)
+if candidate:
+    print(f"Would displace: {candidate.display_name}")
+displaced = enclave.displace(Tier.CLOSE)
+enclave.add("newperson@example.com", "email", Tier.CLOSE)
+```
+
+### The Device Secret
+
+The device secret is the root of all proxy npub derivation. Call `export_secret()` after `create()` and store it securely. If you lose it, all proxy npubs become unrecoverable -- your relationship map loses its cryptographic anchoring.
+
+```python
+enclave = SocialEnclave.create()
+secret = enclave.export_secret()
+# Store in encrypted backup, hardware vault, or NostrKeep
+
+# Later: rebuild from backed-up secret
+enclave = SocialEnclave.restore(secret)
+```
+
+## Response Reference
+
+### Contact
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -241,7 +288,7 @@ Friends list total: 150 (Dunbar's number). Unknown contacts get neutral behavior
 | `interaction_count` | `int` | Total interactions recorded |
 | `upgrade_hint` | `str` | Hint for identity verification |
 
-### BehaviorRules (returned by `get_behavior()`)
+### BehaviorRules
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -251,9 +298,9 @@ Friends list total: 150 (Dunbar's number). Unknown contacts get neutral behavior
 | `warmth` | `float` | 0.0--1.0 (intimate=0.95, known=0.5, block=0.0) |
 | `response_priority` | `int` | 1=highest (intimate), 10=block |
 | `share_context` | `bool` | Share agent context with this contact |
-| `proactive_contact` | `bool` | Agent initiates contact |
+| `proactive_contact` | `bool` | Entity initiates contact |
 
-### Evaluation (returned by `evaluate()`)
+### Evaluation
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -265,7 +312,7 @@ Friends list total: 150 (Dunbar's number). Unknown contacts get neutral behavior
 | `rationale` | `str` | Why this recommendation |
 | `tier_suggestion` | `Tier \| None` | Suggested tier if promote/demote |
 
-### ScreenResult (returned by `screen()`)
+### ScreenResult
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -276,7 +323,7 @@ Friends list total: 150 (Dunbar's number). Unknown contacts get neutral behavior
 | `action` | `str` | "block", "exit", "warn", or "demote" |
 | `rationale` | `str` | Human-readable explanation |
 
-### NetworkShape (returned by `network_shape()`)
+### NetworkShape
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -286,92 +333,9 @@ Friends list total: 150 (Dunbar's number). Unknown contacts get neutral behavior
 | `profile_type` | `str` | "balanced", "fortress", "deep-connector", etc. |
 | `narrative` | `str` | Human-readable network description |
 
-## Common Patterns
-
-### Device Secret Backup
-
-```python
-enclave = SocialEnclave.create()
-secret = enclave.export_secret()
-# Store secret in encrypted backup, hardware vault, or NostrKeep
-
-# Later: rebuild from backed-up secret
-enclave = SocialEnclave.restore(secret)
-```
-
-### Displacement When a Tier Is Full
-
-```python
-# Check who would be displaced before adding
-candidate = enclave.displacement_candidate(Tier.CLOSE)
-if candidate:
-    print(f"Would displace: {candidate.display_name}")
-
-# Force a slot open by demoting the weakest contact
-displaced = enclave.displace(Tier.CLOSE)
-# displaced is now in FAMILIAR tier
-enclave.add("newperson@example.com", "email", Tier.CLOSE)
-```
-
-### Dry-Run Maintenance
-
-```python
-preview = enclave.maintain(dry_run=True)
-for contact in preview["would_drift"]:
-    print(f"  {contact.display_name} would drift")
-for contact in preview["would_decay"]:
-    print(f"  {contact.display_name} would expire from gray")
-
-# Only commit if the preview looks right
-if input("Proceed? ") == "y":
-    enclave.maintain()
-```
-
-## Security
-
-- **The device secret is the root of all proxy npub derivation.** Call `export_secret()` after `create()` and store it securely. If you lose it, all proxy npubs become unrecoverable.
-- **Never hardcode an nsec in your code.** If your agent has a Nostr identity, load it from an environment variable or encrypted file. The `nostrkey` package provides `Identity.load()` for this.
-- **ScreenResult.matched never exposes raw input.** It returns category tags like `[slurs]` to prevent PII leakage in logs or downstream systems.
-- **Guardrails use bundled defaults** from `data/*.json` (banned words, topics, entities). Operators can override or extend via `extra_words`, `extra_topics`, and `extra_entities` parameters on `Guardrails()`.
-- Proxy npubs are deterministic (HMAC-SHA256) -- same identifier always maps to same npub.
-- Challenge verification requires relay interaction -- stub only in 0.1.0.
-
-## Configuration
-
-### Capacity Constants
-
-| List | Capacity |
-|------|----------|
-| INTIMATE | 5 |
-| CLOSE | 15 |
-| FAMILIAR | 50 |
-| KNOWN | 80 |
-| BLOCK | 50 |
-| GRAY | 100 (auto-decay after 30 days) |
-| Friends total | 150 (Dunbar's number) |
-
-All capacity constants are defined in `types.py` and can be overridden via `SocialEnclave.create(tier_capacity=..., list_capacity=...)`.
-
-### Identity States
-
-| State | Meaning |
-|-------|---------|
-| `PROXY` | HMAC-derived from email/phone/handle. Default for new contacts. |
-| `CLAIMED` | User provided an npub but it has not been verified. |
-| `VERIFIED` | Signed challenge confirms npub ownership. Verified contacts get warmer behavior. |
-
-### Drift Thresholds (defaults)
-
-| Tier | Silent days before demotion |
-|------|----------------------------|
-| INTIMATE | 30 days |
-| CLOSE | 60 days |
-| FAMILIAR | 90 days |
-| KNOWN | 180 days (then moves to gray) |
-
 ## Links
 
 - **PyPI:** [nostrsocial](https://pypi.org/project/nostrsocial/)
 - **GitHub:** [HumanjavaEnterprises/nostrsocial.app.OC-python.src](https://github.com/HumanjavaEnterprises/nostrsocial.app.OC-python.src)
-- **ClawHub:** Part of the [OpenClaw](https://loginwithnostr.com/openclaw) skill ecosystem
+- **ClawHub:** [clawhub.ai/vveerrgg/nostrsocial](https://clawhub.ai/vveerrgg/nostrsocial)
 - **License:** MIT
