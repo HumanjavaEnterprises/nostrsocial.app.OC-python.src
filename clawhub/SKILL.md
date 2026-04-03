@@ -12,6 +12,30 @@ metadata:
         package: nostrsocial
         bins: []
     homepage: https://github.com/HumanjavaEnterprises/nostrsocial.app.OC-python.src
+trust:
+  tier: mutating
+  justification: >-
+    Manages contact lists and trust tiers. Can add, promote, demote, or block
+    contacts. Writes to local storage backend. No relay writes, no funds.
+budget:
+  estimated_input_tokens: 200
+  estimated_output_tokens: 350
+  context_window_impact: medium
+agents:
+  allowed_agent_types: [general_purpose, guide]
+  recommended_for: general_purpose
+state:
+  creates_side_effects: true
+  safe_to_retry: true
+  requires_checkpoint: false
+failure:
+  behavior: error
+  fallback_description: >-
+    If nostrsocial is unavailable, the agent treats all interactions as
+    KNOWN tier (default behavioral rules). No relationship context.
+graph:
+  depends_on: [nostrkey]
+  enhances: [nostr-profile, sense-memory, social-alignment]
 ---
 
 # NostrSocial -- Your Social Awareness
