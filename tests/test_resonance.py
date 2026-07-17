@@ -310,7 +310,6 @@ class TestEnclaveLink:
         the primary was picked by interaction count, and the secondary
         has a higher tier set directly (bypassing add() capacity check).
         """
-        from nostrsocial import CapacityError
         e = SocialEnclave.create(tier_capacity={
             Tier.INTIMATE: 1, Tier.CLOSE: 15, Tier.FAMILIAR: 50, Tier.KNOWN: 80,
         })

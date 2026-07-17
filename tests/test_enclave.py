@@ -5,8 +5,6 @@ import time
 import pytest
 
 from nostrsocial import (
-    BehaviorRules,
-    CapacityError,
     ConversationSignals,
     IdentityState,
     ListType,
@@ -450,7 +448,7 @@ class TestDisplacement:
         e = SocialEnclave.create(
             tier_capacity={Tier.INTIMATE: 5, Tier.CLOSE: 15, Tier.FAMILIAR: 50, Tier.KNOWN: 1},
         )
-        c = e.add("alice@example.com", "email", Tier.KNOWN)
+        e.add("alice@example.com", "email", Tier.KNOWN)
 
         displaced = e.displace(Tier.KNOWN)
         assert displaced is not None

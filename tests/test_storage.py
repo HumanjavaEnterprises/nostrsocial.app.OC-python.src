@@ -1,6 +1,5 @@
 """Tests for storage backends."""
 
-import json
 import os
 
 from nostrsocial.storage import FileStorage, MemoryStorage

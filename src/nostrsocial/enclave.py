@@ -6,7 +6,7 @@ import base64
 import time
 from typing import Optional
 
-from .behavior import NEUTRAL_BEHAVIOR, compute_upgrade_hint, get_behavior
+from .behavior import compute_upgrade_hint, get_behavior
 from .contacts import ContactList
 from .proxy import generate_device_secret
 from .storage import MemoryStorage, StorageBackend
@@ -21,7 +21,7 @@ from .types import (
     Tier,
     TIER_ORDER,
 )
-from .evaluate import Action, ConversationSignals, Evaluation, evaluate
+from .evaluate import ConversationSignals, Evaluation, evaluate
 from .guardrails import Guardrails, ScreenResult
 from .resonance import LinkResult, Recognition, find_recognitions, merge_contacts
 from .verify import Challenge, create_challenge, verify_challenge
@@ -618,7 +618,7 @@ class SocialEnclave:
 
         # Check for over-capacity in top tiers
         intimate_cap = tier_capacities.get("intimate", 5)
-        close_cap = tier_capacities.get("close", 15)
+        _ = tier_capacities.get("close", 15)  # reserved for future close-tier checks
 
         if friend_count == 0:
             if block_count > 0:

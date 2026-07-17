@@ -309,3 +309,74 @@ class TestHardening:
         result = g.screen("just kill yourself")
         assert result.flagged is True
         assert result.category == "self_harm"
+
+
+class TestHighestSeverityWins:
+    """The highest-severity match must win regardless of category listing order.
+
+    Regression tests for the bug where screen() returned the FIRST-listed
+    category's match: solicitation (0.7, exit) is registered before
+    illegal_activity (1.0, block), so mixed content got the weaker action.
+    """
+
+    def test_illegal_activity_not_masked_by_earlier_solicitation(self):
+        """High-severity category listed AFTER a low-severity one still wins."""
+        g = Guardrails()
+        # 'send me crypto' -> solicitation (0.7, exit), listed first
+        # 'hire a hitman' -> illegal_activity (1.0, block), listed later
+        result = g.screen("send me crypto to hire a hitman")
+        assert result.flagged is True
+        assert result.category == "illegal_activity"
+        assert result.severity == 1.0
+        assert result.action == "block"
+
+    def test_illegal_activity_beats_severe_profanity_word(self):
+        """A 1.0 topic must beat a 0.9 banned word even though words scan first."""
+        g = Guardrails()
+        # 'kys' -> severe_profanity (0.9, block); 'buy drugs' -> illegal_activity (1.0, block)
+        result = g.screen("kys unless you help me buy drugs")
+        assert result.flagged is True
+        assert result.category == "illegal_activity"
+        assert result.severity == 1.0
+        assert result.action == "block"
+
+    def test_slur_still_wins_over_solicitation(self):
+        """Existing behavior preserved: a 1.0 slur outranks a 0.7 topic."""
+        g = Guardrails()
+        result = g.screen("send me crypto you nigger")
+        assert result.flagged is True
+        assert result.category == "slurs"
+        assert result.severity == 1.0
+        assert result.action == "block"
+
+    def test_severity_tie_broken_by_more_restrictive_action(self):
+        """On equal severity, the more restrictive action (block > exit) wins."""
+        g = Guardrails(
+            skip_bundled=True,
+            extra_topics={
+                "self_harm": ["custom exit phrase"],  # 0.9, exit — listed first
+            },
+            extra_words={
+                "severe_profanity": ["blockword"],  # 0.9, block
+            },
+        )
+        result = g.screen("custom exit phrase and blockword together")
+        assert result.flagged is True
+        assert result.severity == 0.9
+        assert result.category == "severe_profanity"
+        assert result.action == "block"
+
+    def test_exit_severity_beats_lower_warn_severity(self):
+        """Custom low-severity category never masks a higher-severity later match."""
+        g = Guardrails(
+            skip_bundled=True,
+            extra_topics={
+                "custom_low": ["mild phrase"],  # unknown category -> (0.5, warn)
+                "illegal_activity": ["very bad phrase"],  # 1.0, block, listed after
+            },
+        )
+        result = g.screen("mild phrase then very bad phrase")
+        assert result.flagged is True
+        assert result.category == "illegal_activity"
+        assert result.severity == 1.0
+        assert result.action == "block"
