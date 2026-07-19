@@ -26,11 +26,31 @@
     "python": ">=3.10"
   },
   "dependencies": [
-    "nostrkey"
+    "nostrkey>=0.1.0"
   ],
   "categories": [
     "social",
     "communication",
     "identity"
+  ],
+  "env": [
+    {
+      "name": "NOSTR_NSEC",
+      "description": "Nostr private key (nsec) for the agent's identity. Load via NostrKey — never hardcode.",
+      "required": false,
+      "sensitive": true
+    },
+    {
+      "name": "NOSTR_RELAY",
+      "description": "Preferred Nostr relay URL for publishing contact events and verification challenges.",
+      "required": false,
+      "sensitive": false
+    },
+    {
+      "name": "NOSTRKEY_PASSPHRASE",
+      "description": "Passphrase for decrypting a NostrKey identity file, if using encrypted storage.",
+      "required": false,
+      "sensitive": true
+    }
   ]
 }
