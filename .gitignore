@@ -13,3 +13,5 @@ venv/
 .env
 .DS_Store
 logs/
+.venv*
+*.egg-info
