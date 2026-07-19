@@ -40,6 +40,13 @@ class ContactList:
         if tier_capacity is not None and list_capacity is None:
             self._list_capacity[ListType.FRIENDS] = sum(self._tier_capacity.values())
 
+    def __repr__(self) -> str:
+        """Safe repr that never exposes the device secret."""
+        return (
+            f"ContactList(contacts={len(self._contacts)}, "
+            f"device_secret='***')"
+        )
+
     def add(
         self,
         identifier: str,

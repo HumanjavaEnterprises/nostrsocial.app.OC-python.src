@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.4 — 2026-07-19
+
+### Reconciliation
+
+- **Version-drift reconciliation with published 0.1.3.** The local
+  `fix/topic-severity` line (0.1.2, highest-severity guardrails fix) had
+  diverged from the published 0.1.3, which carried security hardening the
+  local line lacked. This release is the superset: it keeps the guardrails
+  highest-severity fix and merges 0.1.3's security work forward.
+
+### Security (merged from 0.1.3)
+
+- **`SocialEnclave.__repr__` and `ContactList.__repr__` redact the device
+  secret** (show `'***'`), so it can never leak into logs or tracebacks.
+- Added `tests/test_security.py` covering repr redaction for all
+  secret-holding classes, error-message safety, and input validation.
+  (Two unused imports from the 0.1.3 copy removed so `ruff check .` stays
+  green.)
+
 ## 0.1.2 — 2026-07-17
 
 ### Fixed

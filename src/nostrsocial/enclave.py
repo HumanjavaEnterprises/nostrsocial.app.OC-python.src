@@ -47,6 +47,14 @@ class SocialEnclave:
         self._storage = storage
         self._guardrails = guardrails or Guardrails()
 
+    def __repr__(self) -> str:
+        """Safe repr that never exposes the device secret."""
+        return (
+            f"SocialEnclave(friends={self.friend_count}, "
+            f"blocked={self.block_count}, gray={self.gray_count}, "
+            f"device_secret='***')"
+        )
+
     @classmethod
     def create(
         cls,

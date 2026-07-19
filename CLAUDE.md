@@ -42,3 +42,11 @@ pytest -v
 - `displace(tier)` handles full-tier scenarios by demoting the weakest contact
 - `maintain(dry_run=True)` previews maintenance without making changes
 - `signal_history` on Contact tracks the last 10 interaction snapshots for temporal pattern detection
+
+## Security Hardening
+
+- `SocialEnclave.__repr__` redacts `device_secret` (shows `'***'`)
+- `ContactList.__repr__` redacts `device_secret` (shows `'***'`)
+- `Contact.__repr__` redacts PII (identifier, notes, npubs) — shows only channel, tier, state
+- Error messages never include raw secret values (device secrets, identifiers)
+- `tests/test_security.py` covers repr redaction for all secret-holding classes, error message safety, and input validation

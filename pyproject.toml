@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nostrsocial"
-version = "0.1.2"
+version = "0.1.4"
 description = "Social graph manager for OpenClaw AI agents — contacts, trust tiers, and identity verification over Nostr"
 readme = "README.md"
 license = "MIT"

@@ -8,7 +8,7 @@ Not a contact list. A relationship system — with trust tiers, drift detection,
 pip install nostrsocial
 ```
 
-> **v0.1.2 — part of the coordinated 2026-07 correctness release** (staged, pending PyPI publish). The whole Nostr library family was audited together and every package is now verified against a shared spine of known-answer test vectors (NIP-44 v2, NIP-49, NIP-19 TLV, BIP-340) so encode/decode bugs can't hide inside self-round-trip tests. This release fixes guardrail severity ranking so the highest-severity match always wins. See [`CHANGELOG.md`](./CHANGELOG.md).
+> **v0.1.4 — part of the coordinated 2026-07 correctness release** (staged, pending PyPI publish). The whole Nostr library family was audited together and every package is now verified against a shared spine of known-answer test vectors (NIP-44 v2, NIP-49, NIP-19 TLV, BIP-340) so encode/decode bugs can't hide inside self-round-trip tests. This release fixes guardrail severity ranking so the highest-severity match always wins, and reconciles with the 0.1.3 security-hardening line (device-secret redaction in `__repr__`). See [`CHANGELOG.md`](./CHANGELOG.md).
 
 ## What This Does
 
