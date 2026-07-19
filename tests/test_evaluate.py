@@ -6,8 +6,6 @@ from nostrsocial import (
     Action,
     Contact,
     ConversationSignals,
-    Evaluation,
-    IdentityState,
     ListType,
     SocialEnclave,
     Tier,

@@ -84,7 +84,7 @@ class TestTouch:
         assert contact.interaction_count == 2
 
     def test_touch_by_identifier(self, cl):
-        contact = cl.add("alice@example.com", "email", ListType.FRIENDS, Tier.CLOSE)
+        cl.add("alice@example.com", "email", ListType.FRIENDS, Tier.CLOSE)
         result = cl.touch_by_identifier("alice@example.com", "email")
         assert result is not None
         assert result.interaction_count == 1

@@ -14,7 +14,6 @@ from .behavior import get_behavior
 from .types import (
     BehaviorRules,
     Contact,
-    IdentityState,
     ListType,
     Tier,
     TIER_ORDER,

@@ -25,7 +25,6 @@ from .types import (
     Contact,
     IdentityState,
     ListType,
-    Tier,
     TIER_ORDER,
 )
 

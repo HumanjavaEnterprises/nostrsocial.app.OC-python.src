@@ -9,7 +9,6 @@ from nostrsocial.behavior import (
     get_behavior,
 )
 from nostrsocial.types import (
-    BehaviorRules,
     Contact,
     IdentityState,
     ListType,

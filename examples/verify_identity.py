@@ -23,10 +23,10 @@ def main():
 
     # Create a verification challenge
     challenge = enclave.create_challenge("npub1aliceexamplepubkey")
-    print(f"\nChallenge created for Alice:")
+    print("\nChallenge created for Alice:")
     print(f"  Nonce: {challenge.nonce}")
     print(f"  Expires: {challenge.expires_at}")
-    print(f"  Ask Alice to sign this nonce with her nsec")
+    print("  Ask Alice to sign this nonce with her nsec")
 
     # Full verification via relay ships in 0.2.0
     try:

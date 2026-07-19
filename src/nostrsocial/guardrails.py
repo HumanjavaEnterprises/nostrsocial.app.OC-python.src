@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from importlib import resources
 from typing import Optional
 
@@ -47,6 +47,20 @@ _CATEGORY_CONFIG: dict[str, tuple[float, str]] = {
     "bot_signatures": (0.5, "warn"),
     "impersonation_patterns": (0.7, "demote"),
 }
+
+# Action restrictiveness ranking, used to tie-break equal severities.
+# Higher rank = more restrictive. block > exit > demote > warn.
+_ACTION_RANK: dict[str, int] = {
+    "block": 3,
+    "exit": 2,
+    "demote": 1,
+    "warn": 0,
+}
+
+# The strongest possible result: nothing can outrank this, so scanning
+# can stop as soon as a match reaches it.
+_MAX_SEVERITY = 1.0
+_MAX_ACTION_RANK = _ACTION_RANK["block"]
 
 _RATIONALE: dict[str, str] = {
     "slurs": "Slur detected. No tolerance regardless of relationship.",
@@ -158,8 +172,11 @@ class Guardrails:
     def screen(self, text: str) -> ScreenResult:
         """Screen conversation text for banned content.
 
-        Checks in priority order: words → patterns → topics.
-        Returns on first match (highest severity wins).
+        Checks words, obfuscation patterns, and topics, collecting ALL matches.
+        The highest-severity match wins, regardless of the order categories are
+        listed in. Ties on severity are broken by the more restrictive action
+        (block > exit > demote > warn), then by check order
+        (words → patterns → topics) for determinism.
         """
         if not text:
             return ScreenResult()
@@ -171,31 +188,53 @@ class Guardrails:
         # Normalize unicode homoglyphs (е→e, а→a, etc.) before screening
         normalized = unicodedata.normalize("NFKD", text).lower()
 
+        best: Optional[ScreenResult] = None
+
+        def _consider(candidate: ScreenResult) -> None:
+            nonlocal best
+            if best is None or _result_rank(candidate) > _result_rank(best):
+                best = candidate
+
+        def _maxed() -> bool:
+            return best is not None and _result_rank(best) >= (
+                _MAX_SEVERITY,
+                _MAX_ACTION_RANK,
+            )
+
         # 1. Check banned words (exact match within text)
         for cat, words in self._words.items():
             for word in words:
                 if _word_in_text(word, normalized):
                     severity, action = _CATEGORY_CONFIG.get(cat, (0.5, "warn"))
-                    return ScreenResult(
+                    _consider(ScreenResult(
                         flagged=True,
                         severity=severity,
                         category=cat,
                         matched=f"[{cat}]",
                         action=action,
                         rationale=_RATIONALE.get(cat, "Banned content detected."),
-                    )
+                    ))
+                    break  # One hit per category is enough; move to next category
+        if _maxed():
+            return best  # type: ignore[return-value]
 
-        # 2. Check obfuscation patterns
+        # 2. Check obfuscation patterns. A hit only counts as an OBFUSCATED
+        # slur if the matched text is not itself an exact banned word — plain
+        # words are already classified (with their own severity) in step 1.
         for pattern in self._patterns:
-            if pattern.search(normalized):
-                return ScreenResult(
+            match = pattern.search(normalized)
+            if match and not self._is_exact_banned_word(match.group(0)):
+                _consider(ScreenResult(
                     flagged=True,
                     severity=1.0,
                     category="obfuscated_slur",
                     matched="[pattern]",
                     action="block",
                     rationale="Obfuscated slur detected. Attempted evasion makes it worse.",
-                )
+                ))
+                break
+        if _maxed():
+            return best  # type: ignore[return-value]
 
         # 3. Check banned topics (phrase match with whitespace normalization)
         ws_normalized = re.sub(r"\s+", " ", normalized)
@@ -203,16 +242,26 @@ class Guardrails:
             for phrase in phrases:
                 if phrase in ws_normalized:
                     severity, action = _CATEGORY_CONFIG.get(cat, (0.5, "warn"))
-                    return ScreenResult(
+                    _consider(ScreenResult(
                         flagged=True,
                         severity=severity,
                         category=cat,
                         matched=f"[{cat}]",
                         action=action,
                         rationale=_RATIONALE.get(cat, "Banned topic detected."),
-                    )
+                    ))
+                    break  # One hit per category is enough; move to next category
 
-        return ScreenResult()
+        return best if best is not None else ScreenResult()
+
+    def _is_exact_banned_word(self, matched_text: str) -> bool:
+        """True if the text an obfuscation pattern matched is a plain banned word.
+
+        In that case no evasion occurred and the word's own category/severity
+        (assigned in the word-check phase) should stand.
+        """
+        candidate = matched_text.strip().lower()
+        return any(candidate in words for words in self._words.values())
 
     def screen_entity(self, name: str) -> ScreenResult:
         """Screen a display name or alias for known bad-actor patterns.
@@ -272,6 +321,15 @@ class Guardrails:
     def entity_count(self) -> int:
         """Total number of banned entity names across all categories."""
         return sum(len(names) for names in self._entities.values())
+
+
+def _result_rank(result: ScreenResult) -> tuple[float, int]:
+    """Ranking key for competing screen matches.
+
+    Severity wins first; equal severities fall back to the more
+    restrictive action (block > exit > demote > warn).
+    """
+    return (result.severity, _ACTION_RANK.get(result.action, 0))
 
 
 def _word_in_text(word: str, text: str) -> bool:
