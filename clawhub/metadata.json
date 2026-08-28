@@ -5,7 +5,7 @@
   "summary": "Social graph manager — contacts, trust tiers, and identity verification over Nostr",
   "author": {
     "name": "Humanjava Enterprises",
-    "url": "https://loginwithnostr.com/openclaw"
+    "url": "https://loginwithnostr.com/python-agents"
   },
   "license": "MIT",
   "acceptLicenseTerms": true,

@@ -45,9 +45,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://loginwithnostr.com/openclaw"
+Homepage = "https://loginwithnostr.com/python-agents"
 Repository = "https://github.com/HumanjavaEnterprises/nostrsocial.app.OC-python.src"
-Documentation = "https://loginwithnostr.com/openclaw"
+Documentation = "https://loginwithnostr.com/python-agents"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nostrsocial"]

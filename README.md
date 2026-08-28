@@ -239,13 +239,13 @@ This isn't a drive-by package. NostrSocial is under active development as part o
 - **0.3.0** — Relay-based contact discovery and sync
 - Ongoing refinement of evaluation heuristics, guardrail coverage, and drift tuning based on real-world agent deployments
 
-If you're building with it, we want to hear what works and what doesn't. File issues on [GitHub](https://github.com/HumanjavaEnterprises/nostrsocial.app.OC-python.src) or reach out through the [OpenClaw community](https://loginwithnostr.com/openclaw).
+If you're building with it, we want to hear what works and what doesn't. File issues on [GitHub](https://github.com/HumanjavaEnterprises/nostrsocial.app.OC-python.src) or reach out through the [OpenClaw community](https://loginwithnostr.com/python-agents).
 
 ## OpenClaw Skill
 
-NostrSocial is published on [ClawHub](https://loginwithnostr.com/openclaw) as the `nostrsocial` skill. It's the **Relationships** pillar of sovereign AI autonomy — alongside [NostrKey](https://nostrkey.com) (Identity), [NostrWalletConnect](https://pypi.org/project/nostrwalletconnect/) (Finance), and [NostrCalendar](https://pypi.org/project/nostrcalendar/) (Time).
+NostrSocial is published on [ClawHub](https://loginwithnostr.com/python-agents) as the `nostrsocial` skill. It's the **Relationships** pillar of sovereign AI autonomy — alongside [NostrKey](https://nostrkey.com) (Identity), [NostrWalletConnect](https://pypi.org/project/nostrwalletconnect/) (Finance), and [NostrCalendar](https://pypi.org/project/nostrcalendar/) (Time).
 
-Full documentation, support, and policies at [loginwithnostr.com/openclaw](https://loginwithnostr.com/openclaw).
+Full documentation, support, and policies at [loginwithnostr.com/python-agents](https://loginwithnostr.com/python-agents).
 
 ## License
 
